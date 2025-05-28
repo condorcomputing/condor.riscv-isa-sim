@@ -85,4 +85,20 @@ for i in {1..15}; do
 	fi
 done
 
+export SPIKE_OPTS="--stf_insn_num_tracing --stf_insn_start 0"
+
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+
+if [ $? -eq 0 ]; then
+	#echo "Checking trace file for mode string $mode..." >> $logfile
+        INST_TO_MATCH=$expected_U
+	if ! check_inst_trace_addr $INST_TO_MATCH $DUMP_OUT $RISCV_BIN $testname_basic; then
+          STATUS=1
+	#else
+	#   echo "Found traced instruction at expected address ${address}"
+        fi
+else
+	STATUS=1
+fi
+
 exit $STATUS
