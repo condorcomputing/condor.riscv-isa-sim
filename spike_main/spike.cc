@@ -578,8 +578,11 @@ int main(int argc, char** argv)
   }
 
   if(stfhandler->stf_writer_enabled()) {
-    stfhandler->report_stats(s,cfg,exe_start);
     stfhandler->close_trace();
+  }
+
+  if (stfhandler->trace_file_name != "" || bb_tracer_options::en_bbv) {
+    stfhandler->report_stats(s,cfg,exe_start);
   }
 
   for (auto& mem : mems)

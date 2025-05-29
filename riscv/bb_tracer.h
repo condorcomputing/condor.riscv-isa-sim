@@ -47,6 +47,8 @@ public:
 
     bool in_region_of_interest() const;
 
+    long int get_total_insns();
+
 private:
     int capture_basic_block(uint64_t pc);
 
@@ -78,6 +80,7 @@ private:
     uint64_t m_benchmark_return_code{0};
     uint64_t m_last_pc{0};
     uint64_t m_simpoint_en_pc{0};
+    long int m_total_insn_in_roi{0};
 };
 
 namespace bb_tracer_options {
