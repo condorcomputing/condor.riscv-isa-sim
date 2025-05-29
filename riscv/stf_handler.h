@@ -213,12 +213,11 @@ struct StfHandler
   void trace_count_insn(processor_t *proc,insn_fetch_t &fetch,
                         std::string debug="")
   {
-    _pending_region = false;
     auto const state = proc->get_state();
     auto const PC = state->pc;
 
     bool stop_a =  is_stop_macro(fetch.insn.bits()) && exit_on_stop_opc;
-    bool stop_b =  insn_count == UINT64_MAX ? false : executed_instructions >= insn_start+insn_count;
+    bool stop_b =  insn_count == UINT64_MAX ? false : executed_instructions == insn_start+insn_count;
 
 
     if(unlikely(stop_a)) {
@@ -230,7 +229,7 @@ struct StfHandler
     }
 
     if(unlikely(stop_a || stop_b)) {
-      _in_trace_region = false; //redundant, for clarity/debug
+      _in_trace_region = false;
       report_stats(proc,debug);
       close_trace();
       if(stop_a) {
@@ -275,7 +274,6 @@ struct StfHandler
   void trace_macro_insn(processor_t *proc,insn_fetch_t &fetch,
                         std::string debug="")
   {
-    _pending_region = false;
     auto const state = proc->get_state();
     auto const PC = state->pc;
 
@@ -317,9 +315,6 @@ struct StfHandler
       reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
 
       prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
-
-      //We are already in trace_macro_insn and so slow loop
-      _pending_region = false;
 
       //start macro is the beginning of the trace region
       _in_trace_region = true;
@@ -738,6 +733,10 @@ struct StfHandler
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
   void close_trace() {
+    if (!stf_writer) {
+      fprintf(stderr, "-W: close_trace() called while trace not open.\n");
+      return;
+    }
     stf_writer.flush();
     stf_writer.close();
   }
@@ -746,7 +745,7 @@ struct StfHandler
   bool in_traceable_region() { return _in_trace_region || _pending_region; }
   // ----------------------------------------------------------------
   bool is_start_of_region(uint32_t bits )  { 
-    if(   (insn_num_tracing && executed_instructions >= insn_start)
+    if(   (insn_num_tracing && executed_instructions == insn_start)
        || (macro_tracing    && is_start_macro(bits)))
     {
       _pending_region = true;
@@ -757,13 +756,11 @@ struct StfHandler
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
   bool is_start_macro(uint32_t bits) {
-    _pending_region = true;
     return bits == _START_TRACE;
   }
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
   bool is_stop_macro (uint32_t bits) {
-    _pending_region = false;
     return bits == _STOP_TRACE;
   }
   // ----------------------------------------------------------------
