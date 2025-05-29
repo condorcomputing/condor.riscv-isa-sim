@@ -6,5 +6,5 @@
 	url = https://github.com/riscv-software-src/riscv-tests
 [submodule "jn.mavis"]
 	path = jn.mavis
-  branch = jeffnye-gh/restore_nlohmann
+	branch = jeffnye-gh/restore_nlohmann
 	url = https://github.com/jeffnye-gh/jn.mavis.git
