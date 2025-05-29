@@ -104,6 +104,7 @@ struct StfHandler
   void report_stats(sim_t &s,cfg_t &cfg,
        time_point<high_resolution_clock> &start)
   {
+    std::vector<long int> bbv_insns_per_core;
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start).count();
     double duration_ms = static_cast<double>(duration);
@@ -121,18 +122,24 @@ struct StfHandler
 
     if(!s.in_quiet_mode()) {
       fprintf(stderr,"-I: Totals: \n");
-      fprintf(stderr,"-I:   traced instructions   %ld\n",
+      fprintf(stderr,"-I:   traced instructions         %ld\n",
                             _traced_instructions_running);
-      fprintf(stderr,"-I:   executed instructions %ld\n",
+      fprintf(stderr,"-I:   executed instructions       %ld\n",
                             executed_instructions);
-      fprintf(stderr,"-I:   instructions retired  %ld\n",  instret_count);
-      fprintf(stderr,"-I:   duration ms           %.2f\n", duration_ms);
-      fprintf(stderr,"-I:   wall-clock MIPs       %.2f\n", mips);
+      fprintf(stderr,"-I:   instructions retired        %ld\n",  instret_count);
+      fprintf(stderr,"-I:   duration ms                 %.2f\n", duration_ms);
+      fprintf(stderr,"-I:   wall-clock MIPs             %.2f\n", mips);
+
+      for(size_t idx=0;idx<cfg.nprocs();++idx) {
+        auto bbv_num_insns = s.get_core(idx)->get_bb_tracer().get_total_insns();
+        fprintf(stderr,"-I:   BBV instructions, core %ld    %ld\n", idx, bbv_num_insns);
+	bbv_insns_per_core.push_back(bbv_num_insns);
+      }
     }
 
     write_json_stats(_traced_instructions_running,
                      executed_instructions, instret_count,
-                     duration_ms, mips);
+                     duration_ms, mips, bbv_insns_per_core);
   }
   // ---------------------------------------------------------------- 
   // Getters
@@ -383,7 +390,8 @@ struct StfHandler
                         uint64_t executed_instructions,
                         uint64_t instret_count,
                         double   duration_ms,
-                        double   mips)
+                        double   mips,
+                        std::vector<long int> num_bbv_insns)
   {
     std::ofstream jout(stats_file_name.c_str());
 
@@ -409,6 +417,11 @@ struct StfHandler
 
     jout<<"    \"wall_clock_mips\" : "
         << std::fixed << std::setprecision(3) << mips <<std::endl;
+
+    for (size_t i=0; i<num_bbv_insns.size(); i++) {
+        jout<<"    \"cpu" << std::dec << i << "_bbv_total_isns\" : "
+            << num_bbv_insns[i] << std::endl;
+    }
 
     jout<<"  }"<<std::endl;
     jout<<"}"<<std::endl;
