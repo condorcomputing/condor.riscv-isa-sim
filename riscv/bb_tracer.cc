@@ -75,6 +75,7 @@ int bb_tracer::capture_basic_block(const uint64_t pc) {
 
 void bb_tracer::simpoint_step(uint64_t steps, uint64_t pc) {
     if (m_last_pc && m_simpoint_roi) {
+        m_total_insn_in_roi++;
         m_ninst++;
         capture_basic_block(pc);
         flush_bb_vector(steps);
@@ -89,6 +90,10 @@ void bb_tracer::simpoint_step(uint64_t steps, uint64_t pc) {
 }
 
 bool bb_tracer::in_region_of_interest() const {return m_simpoint_roi;}
+
+long int bb_tracer::get_total_insns() {
+    return m_total_insn_in_roi;
+}
 
 void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept {
     if(m_en_bbv)
@@ -105,13 +110,14 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept {
             capture_basic_block(0);
             flush_bb_vector(1u);
             m_simpoint_roi = false;
-	    m_last_pc = 0;
+            m_last_pc = 0;
         } else if ((val & 1) == 0 && m_simpoint_roi) {
             std::cerr << "simpoint ROI already finished\n";
         } else {
             std::cerr << "simpoint ROI started\n";
             m_simpoint_roi = true;
-	    m_simpoint_en_pc = pc;
+            m_simpoint_en_pc = pc;
+            m_total_insn_in_roi = 0;
         }
         std::cerr.flush();
     }
