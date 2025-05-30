@@ -1,17 +1,42 @@
 #!/usr/bin/env bash
-
+# Boot linux and optionally trace
+#
+# To boot linux
+#
+#   --kernel     <path to kernel,      typ. Image>
+#   --rootfs     <path to filesystem,  typ. rootfs cpio>
+#   --bootloader <path to boot loader, typ. fw_jump.elf>
+# 
+# To specify the path to the trace output file
+#
+#   --trace_out   <trace file output>
+#
+# To specify the name of the file to trace on linux boot 
+#
+#   --auto_trace  <elf name, e.g. dhrystone.riscv> 
+#
+# When --auto_trace is used the elf name will be passed as a boot
+# arg. The target elf must be included in the rootfs in the trace_elfs
+# directory.
+#
+# Linux will boot, the trace enabled elf will be executed and Spike
+# will exit on detection of the stop macro.
+#
 set -e
 
 CPM_SPIKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${CPM_SPIKE_DIR}/scripts/shared_settings.sh"
+
+CPM_SPIKE="${CPM_SPIKE_DIR}/build/spike"
 
 # Default paths
 KERNEL_IMAGE="${CPM_SPIKE_DIR}/${RV_LINUX}/Image"
 ROOTFS_IMAGE="${CPM_SPIKE_DIR}/${RV_LINUX}/rootfs.cpio"
 OPENSBI_ELF="${CPM_SPIKE_DIR}/${RV_LINUX}/fw_jump.elf"
 
-# Optional trace output path
+# Optional trace output path and auto traced elf
 TRACE_OUT=""
+AUTO_TRACE=""
 
 # Command-line args
 while [[ $# -gt 0 ]]; do
@@ -28,8 +53,12 @@ while [[ $# -gt 0 ]]; do
       OPENSBI_ELF="$2"
       shift 2
       ;;
-    --trace)
+    --trace_out)
       TRACE_OUT="$2"
+      shift 2
+      ;;
+    --auto_trace)
+      AUTO_TRACE="$2"
       shift 2
       ;;
     *)
@@ -39,18 +68,32 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Assemble Spike command
+# Default boot args
+BOOT_ARGS="root=/dev/ram rw earlycon=sbi console=hvc0"
+
+## Add trace to boot args if specified
+#if [[ -n "$AUTO_TRACE" ]]; then
+#  BOOT_ARGS+=" trace_elf=${AUTO_TRACE}"
+#fi
+#
+# Assemble base Spike command to boot linux
 SPIKE_CMD=(
-  "${CPM_SPIKE_DIR}/build/spike"
+  "${CPM_SPIKE}"
   --isa="${SPIKE_ISA}"
   --kernel="${KERNEL_IMAGE}"
   --initrd="${ROOTFS_IMAGE}"
-  --bootargs="root=/dev/ram rw earlycon=sbi console=hvc0"
+  --bootargs="${BOOT_ARGS}"
 )
 
-# Add trace if specified
+# future --stf_priv_modes "U"
+# Add trace switches if trace_out is specified
+#              --stf_trace_memory_records
 if [[ -n "$TRACE_OUT" ]]; then
-  SPIKE_CMD+=(--stf_trace "$TRACE_OUT" --stf_macro_tracing)
+  mkdir -p trace_out
+  SPIKE_CMD+=(--stf_trace "$TRACE_OUT" 
+              --stf_macro_tracing
+              --stf_trace_memory_records
+  )
 fi
 
 # Append the bootloader ELF

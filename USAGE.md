@@ -36,7 +36,7 @@ which riscv64-unknown-elf-gcc
 
 If you need to add a compiler, these steps are copied from the master readme.
 ```
-cd cpm.riscv-isa-sim  # the top of this repo's install
+cd condor.riscv-isa-sim  # the top of this repo's install
 bash scripts/download-bm-compiler.sh
 export PATH=`pwd`/riscv-embecosm-embedded-ubuntu2204-20250309/bin:$PATH
 ```
@@ -72,17 +72,17 @@ make help-BM_OPT3
 You must have previously built spike, see the README.md.
 
 The command to create an STF using spike is contained in the script
-cpm.riscv-isa-sim/run\_spike\_stf.sh.
+condor.riscv-isa-sim/run\_spike\_stf.sh.
 
 Basic usage: `bash scripts/run-spike-stf.sh <ELF> <TRACEFILE>`
 
 ```
-cd cpm.riscv-isa-sim
+cd condor.riscv-isa-sim
 bash scripts/run-spike-stf.sh dhrystone/bin/dhrystone_opt1.1000.gcc.bare.riscv dhrystone_opt1.1000.gcc.bare.riscv.zstf
 ```
 
 This runs very quickly and creates a compressed (.zstf) trace file in
-`cpm.riscv-isa-sim/trace_out`
+`condor.riscv-isa-sim/trace_out`
 
 ## Building the Linux Dhrystone Example
 --------
@@ -93,14 +93,14 @@ which  riscv64-unknown-linux-gnu-gcc
 
 If you need to download a compiler:
 ```
-cd cpm.riscv-isa-sim
+cd condor.riscv-isa-sim
 bash scripts/download-lnx-compiler.sh
 export PATH=`pwd`/riscv64-embecosm-linux-gcc-ubuntu2204-20240407/bin:$PATH
 which  riscv64-unknown-linux-gnu-gcc
 ```
 Once you have the linux compiler in your path
 ```
-cd cpm.riscv-isa-sim
+cd condor.riscv-isa-sim
 make -C dhrystone bin-linux
 ```
 
@@ -126,7 +126,7 @@ Downloading/building the kernel, root files system and OpenSBI boot loader
 is done in one script.
 
 ```
-cd cpm.riscv-isa-sim
+cd condor.riscv-isa-sim
 bash scripts/build-linux-collateral.sh
 ```
 This will take some time.
@@ -134,7 +134,7 @@ This will take some time.
 ### Running Linux on the Condor Spike Fork
 With the linux components built, boot linux using the helper script:
 ```
-cd cpm.riscv-isa-sim
+cd condor.riscv-isa-sim
 bash scripts/boot-linux.sh
 ```
 The credentials are root/root. 
@@ -159,18 +159,18 @@ bash scripts/build-trace-rootfs.sh
 
 ## Trace Generation for Linux Applications
 
-Once the new rootfs is built we boot linux on spike with tracing enabled from the
-command line. We use the boot-linux.sh script with two additional
+Once the new rootfs is built we boot linux on spike with tracing enabled 
+from the command line. We use the boot-linux.sh script with two additional
 arguments. The first specifes the new rootfs and the second specifies the path 
 for the STF trace output.
 
 ```
-cd cpm.riscv-isa-sim
-bash scripts/boot-linux.sh --rootfs ./riscv-linux/trace_rootfs.cpio \
-                           --trace ./trace_out/linux_trace.zstf
+cd condor.riscv-isa-sim
+bash scripts/boot-linux.sh --rootfs    ./riscv-linux/trace_rootfs.cpio \
+                           --trace_out ./trace_out/linux_trace.zstf
 ```
 Once linux boots, enter the root/root credentials, then from the ash shell
-cd to `trace_elfs and run the dhrystone_opt3.1000.gcc.bare.riscv.zstf
+cd to `trace_elfs and run the dhrystone_opt3.1000.gcc.linux.riscv.zstf
 
 A sample session:
 
@@ -216,7 +216,26 @@ coremark, coremark-pro.
 
 ## Automating Linux Tracing with initd
 
-PLACEHOLDER
+Automatic tracing of a linux based application is done using by passing
+the name of the elf through boot args. An init.d script called S99runprogram
+unpacks the boot args and executes the specified elf
+
+To show this the previous boot-linux.sh script is used with an addition
+argument, --auto_trace. We can reuse the existing trace rootfs and the
+elfs previously installed.
+
+```
+cd condor.riscv-isa-sim
+bash scripts/boot-linux.sh --rootfs     ./riscv-linux/trace_rootfs.cpio   \
+                           --trace_out  ./trace_out/linux_auto_trace.zstf \
+                           --auto_trace dhrystone_opt3.1000.gcc.linux.riscv
+```
+
+This script will boot linux, execute the dhrystone opt3 elf, create a
+compressed trace file and exit.
+
+### Initd details
+
 
 ## Creating BBVs under Linux
 
