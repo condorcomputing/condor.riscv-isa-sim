@@ -159,18 +159,18 @@ bash scripts/build-trace-rootfs.sh
 
 ## Trace Generation for Linux Applications
 
-Once the new rootfs is built we boot linux on spike with tracing enabled from the
-command line. We use the boot-linux.sh script with two additional
+Once the new rootfs is built we boot linux on spike with tracing enabled 
+from the command line. We use the boot-linux.sh script with two additional
 arguments. The first specifes the new rootfs and the second specifies the path 
 for the STF trace output.
 
 ```
 cd condor.riscv-isa-sim
-bash scripts/boot-linux.sh --rootfs ./riscv-linux/trace_rootfs.cpio \
-                           --trace ./trace_out/linux_trace.zstf
+bash scripts/boot-linux.sh --rootfs    ./riscv-linux/trace_rootfs.cpio \
+                           --trace_out ./trace_out/linux_trace.zstf
 ```
 Once linux boots, enter the root/root credentials, then from the ash shell
-cd to `trace_elfs and run the dhrystone_opt3.1000.gcc.bare.riscv.zstf
+cd to `trace_elfs and run the dhrystone_opt3.1000.gcc.linux.riscv.zstf
 
 A sample session:
 
@@ -216,7 +216,26 @@ coremark, coremark-pro.
 
 ## Automating Linux Tracing with initd
 
-PLACEHOLDER
+Automatic tracing of a linux based application is done using by passing
+the name of the elf through boot args. An init.d script called S99runprogram
+unpacks the boot args and executes the specified elf
+
+To show this the previous boot-linux.sh script is used with an addition
+argument, --auto_trace. We can reuse the existing trace rootfs and the
+elfs previously installed.
+
+```
+cd condor.riscv-isa-sim
+bash scripts/boot-linux.sh --rootfs     ./riscv-linux/trace_rootfs.cpio   \
+                           --trace_out  ./trace_out/linux_auto_trace.zstf \
+                           --auto_trace dhrystone_opt3.1000.gcc.linux.riscv
+```
+
+This script will boot linux, execute the dhrystone opt3 elf, create a
+compressed trace file and exit.
+
+### Initd details
+
 
 ## Creating BBVs under Linux
 

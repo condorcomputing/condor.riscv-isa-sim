@@ -39,8 +39,8 @@ see [Embecosm Download](https://embecosm.com/downloads/tool-chain-downloads/#ris
 There is a script which downloads and extracts the compiler tarball and
 adds links to the toolchain elements so names are compatible with riscv-tests.
 
-adds the compiler bin dir to your path and adds links to toolchain elements so names are 
-compatible with riscv-tests
+adds the compiler bin dir to your path and adds links to toolchain 
+elements so names are compatible with riscv-tests
 
 ```
     $ cd condor.riscv-isa-sim
@@ -48,7 +48,8 @@ compatible with riscv-tests
 ```
 The downloaded compiler supports both RV32 and RV64.
 
-The addition to your PATH is left as a manual step.  To update your path a typical command would be:
+The addition to your PATH is left as a manual step.  To update your path a 
+typical command would be:
 ```
     $ export PATH=`pwd`/riscv-embecosm-embedded-ubuntu2204-20250309/bin:$PATH
     $ which riscv64-unknown-elf-gcc       #verify compiler is in your path
@@ -60,6 +61,19 @@ Spike-STF requires some standard packages. The Ubuntu command is this:
 ```
     $ sudo apt-get install device-tree-compiler libboost-regex-dev libboost-system-dev
 ```
+
+---------------
+## Conda/Sparta environment
+
+At present if you have an active sparta conda environment you must exit it 
+to compile Spike. If (sparta) is active typically your prompt will begin 
+with (sparta).
+
+```
+conda deactivate
+```
+
+It is not necessary to exit the (base) environment.
 
 ---------------
 # Spike-STF Build Steps
@@ -91,4 +105,4 @@ as well as discussions of automation and BBV generation is found in USAGE.md
   - how to generate bbv's
   - how to automate linux trace generation
 
-See : [USAGE.md](https://github.com/jeffnye-gh/condor.riscv-isa-sim/blob/spike_stf/USAGE.md)
+See : [USAGE.md](https://github.com/condorcomputing/condor.riscv-isa-sim/blob/spike_stf/USAGE.md)
