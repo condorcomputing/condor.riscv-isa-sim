@@ -1,0 +1,7 @@
+mkdir -p trace_out
+rm -f trace_out/*
+bash scripts/boot-linux.sh --rootfs     ./riscv-linux/trace_rootfs.cpio   \
+                           --trace_out  ./trace_out/linux_auto_trace.zstf
+
+
+#                           --auto_trace dhrystone_opt3.1000.gcc.linux.riscv
