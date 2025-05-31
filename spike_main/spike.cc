@@ -555,7 +555,10 @@ int main(int argc, char** argv)
   }
 
   s.set_debug(debug);
-  s.configure_log(log, log_commits, stfhandler->stf_enable_log_commits());
+  s.configure_log(log, log_commits, 
+                  stfhandler->get_trace_memory_records(),
+                  stfhandler->get_trace_register_state());
+
   s.set_histogram(histogram);
   s.set_quiet_mode(quiet_mode);
 

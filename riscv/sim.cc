@@ -325,13 +325,17 @@ void sim_t::set_quiet_mode(bool value)
 }
 
 void sim_t::configure_log(bool enable_log, bool enable_commitlog,
-                          bool enable_stf_log)
+                          bool enable_stf_mem_records,
+                          bool enable_stf_reg_state)
 {
   log = enable_log;
 
-  if(enable_stf_log) {
+  procs.at(0)->set_enable_stf_memory_records(enable_stf_mem_records);
+  procs.at(0)->set_enable_stf_register_state(enable_stf_mem_records);
+
+  if(enable_stf_mem_records || enable_stf_reg_state) {
     enable_commitlog = true;
-    procs.at(0)->enable_stf_commits();
+//    procs.at(0)->enable_stf_commits();
   }
 
   if (!enable_commitlog)
