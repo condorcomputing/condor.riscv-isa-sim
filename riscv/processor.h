@@ -272,12 +272,13 @@ public:
   bool get_enable_stf_register_state() const
     { return stf_register_state_enabled; }
 
-//stf_commits_enabled
-  bool get_log_or_stf_commits_enabled() const {
-    return log_commits_enabled
-        || get_enable_stf_memory_records() 
+  bool get_stf_commits_enabled() const {
+    return get_enable_stf_memory_records()
         || get_enable_stf_register_state();
   }
+
+  bool get_log_or_stf_commits_enabled() const
+    { return log_commits_enabled || get_stf_commits_enabled();  }
 
   void reset();
   void step(size_t n); // run for n cycles
@@ -411,7 +412,6 @@ private:
   bool histogram_enabled;
   bool quiet_mode_is_set{false};
   bool log_commits_enabled;
-//  bool stf_commits_enabled{false};
   bool stf_memory_records_enabled{false};
   bool stf_register_state_enabled{false};
   FILE *log_file;

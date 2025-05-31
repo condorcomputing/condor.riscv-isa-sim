@@ -333,9 +333,8 @@ void sim_t::configure_log(bool enable_log, bool enable_commitlog,
   procs.at(0)->set_enable_stf_memory_records(enable_stf_mem_records);
   procs.at(0)->set_enable_stf_register_state(enable_stf_mem_records);
 
-  if(enable_stf_mem_records || enable_stf_reg_state) {
+  if(enable_stf_reg_state) {
     enable_commitlog = true;
-//    procs.at(0)->enable_stf_commits();
   }
 
   if (!enable_commitlog)
