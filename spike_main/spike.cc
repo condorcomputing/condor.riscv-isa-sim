@@ -59,7 +59,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --device=<name>       Attach MMIO plugin device from an --extlib library,\n");
   fprintf(stderr, "                          specify --device=<name>,<args> to pass down extra args.\n");
   fprintf(stderr, "  --log-cache-miss      Generate a log of cache miss\n");
-  fprintf(stderr, "  --log-commits         Generate a log of commits info\n");
+  fprintf(stderr, "  --log-commits         Generate a log of commits info [default false] \n");
   fprintf(stderr, "  --extension=<name>    Specify RoCC Extension\n");
   fprintf(stderr, "                          This flag can be used multiple times.\n");
   fprintf(stderr, "  --extlib=<name>       Shared library to load\n");
@@ -439,7 +439,7 @@ int main(int argc, char** argv)
   parser.option(0, "dm-no-halt-groups", 0,
       [&](const char UNUSED *s){dm_config.support_haltgroups = false;});
   parser.option(0, "log-commits", 0,
-                [&](const char UNUSED *s){log_commits = true;});
+                [&](const char UNUSED *s){log_commits = false;});
   parser.option(0, "log", 1,
                 [&](const char* s){log_path = s;});
   FILE *cmd_file = NULL;
