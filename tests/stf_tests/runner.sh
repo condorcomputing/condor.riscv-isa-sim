@@ -1,7 +1,7 @@
 #!/bin/bash
 
-TRACE_DUMP=/data/tools/bin/stf_dump
-TRACE_RECORD_DUMP=/data/tools/bin/stf_record_dump
+TRACE_DUMP=stf_dump
+TRACE_RECORD_DUMP=stf_record_dump
 
 THIS_SCRIPT=$(basename "$0")
 TEST_NAME_BASIC=$1
