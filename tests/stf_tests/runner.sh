@@ -1,10 +1,16 @@
 #!/bin/bash
 
-#_STH=/home/jeff/Development/jeffnye-gh/stf_tools
-#TRACE_DUMP=/home/jeff/Development/jeffnye-gh/stf_tools/release/tools/stf_dump/stf_dump
-TRACE_DUMP=/home/jeff/Development/jeffnye-gh/stf_utils/bin/stf_util_dump
-#TRACE_RECORD_DUMP=/home/jeff/Development/jeffnye-gh/stf_tools/release/tools/stf_record_dump/stf_record_dump
-TRACE_RECORD_DUMP=/home/jeff/Development/jeffnye-gh/stf_utils/bin/stf_util_record_dump
+# FIXME: create a solution for building stf_tools under 22.04
+# without conda
+#
+# These need to be in PATH also MAVIS_PATH must be exported
+#
+# Typically
+#   export PATH=/path/to/stf_dump:/path/to/stf_record_dump:$PATH
+#   export MAVIS_PATH=/path/to/stf_tools/mavis
+#
+TRACE_DUMP=stf_dump
+TRACE_RECORD_DUMP=stf_record_dump
 
 THIS_SCRIPT=$(basename "$0")
 TEST_NAME_BASIC=$1

@@ -71,11 +71,11 @@ done
 # Default boot args
 BOOT_ARGS="root=/dev/ram rw earlycon=sbi console=hvc0"
 
-## Add trace to boot args if specified
-#if [[ -n "$AUTO_TRACE" ]]; then
-#  BOOT_ARGS+=" trace_elf=${AUTO_TRACE}"
-#fi
-#
+# Add trace to boot args if specified
+if [[ -n "$AUTO_TRACE" ]]; then
+  BOOT_ARGS+=" trace_elf=${AUTO_TRACE}"
+fi
+
 # Assemble base Spike command to boot linux
 SPIKE_CMD=(
   "${CPM_SPIKE}"
@@ -85,20 +85,28 @@ SPIKE_CMD=(
   --bootargs="${BOOT_ARGS}"
 )
 
-# future --stf_priv_modes "U"
-# Add trace switches if trace_out is specified
-#              --stf_trace_memory_records
 if [[ -n "$TRACE_OUT" ]]; then
   mkdir -p trace_out
   SPIKE_CMD+=(--stf_trace "$TRACE_OUT" 
               --stf_macro_tracing
               --stf_trace_memory_records
+              --stf_priv_modes U
+              --stf_exit_on_stop_opc
   )
 fi
 
 # Append the bootloader ELF
 SPIKE_CMD+=("${OPENSBI_ELF}")
 
+#echo "${SPIKE_CMD[@]}"
+
 # Run Spike
 LD_LIBRARY_PATH="${CPM_SPIKE_DIR}/build" "${SPIKE_CMD[@]}"
 
+# TODO - Future feature
+#        Need a solution for stf_tools under 22.04 w/o conda
+ENABLE_STF_TOOLS=false
+STF_DUMP=../stf_tools/release/tools/stf_dump/stf_dump
+if [[ -n "$TRACE_OUT" && "$ENABLE_STF_TOOLS" == "true" ]]; then
+    "${STF_DUMP}" "${TRACE_OUT}" > "${TRACE_OUT}.dump"
+fi
