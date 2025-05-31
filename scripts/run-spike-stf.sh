@@ -5,7 +5,8 @@ source "${CPM_SPIKE_DIR}/scripts/shared_settings.sh"
 
 # Description:
 # Run the Spike simulator with a given STF trace and ELF binary.
-# Outputs logs and traces to the 'output/' directory unless the user specifies full paths.
+# Outputs logs and traces to the $OUTDIR directory unless the user 
+# specifies full paths.
 
 # Default input arguments
 ELF_FILE="${1:-dhrystone/bin/dhrystone_opt1.1000.gcc.bare.riscv}"
@@ -31,5 +32,16 @@ fi
 # Run Spike
 LD_LIBRARY_PATH=./build ./build/spike \
   --isa="${SPIKE_ISA}" \
-  --stf_macro_tracing --stf_trace "$OUT_TRACE" \
+  --stf_macro_tracing \
+  --stf_trace_memory_records \
+  --stf_trace "$OUT_TRACE" \
   "$ELF_FILE"
+
+# TODO - Future feature
+#        Need a solution for stf_tools under 22.04 w/o conda
+ENABLE_STF_TOOLS=true
+STF_DUMP=../stf_tools/release/tools/stf_dump/stf_dump
+if [[ "$ENABLE_STF_TOOLS" == "true" ]]; then
+    "${STF_DUMP}" "${OUT_TRACE}" > "${OUT_TRACE}.dump"
+fi
+

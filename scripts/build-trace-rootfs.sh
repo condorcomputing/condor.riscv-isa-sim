@@ -55,7 +55,7 @@ cp -r "${RV_LINUX}/trace_elfs" \
 
 # Add the launcher, S99runprogram, to init.d
 cp "${SCRIPTS}/S99runprogram" \
-   "${BUILDROOT}/output/target/etc/" || {
+   "${BUILDROOT}/output/target/etc/init.d" || {
   echo "-E: Failed to copy S99runprogram"; exit 1;
 }
 
