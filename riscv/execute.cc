@@ -165,7 +165,7 @@ static inline reg_t execute_insn_fast(processor_t* p, reg_t pc, insn_fetch_t fet
 }
 static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t fetch)
 {
-  if (p->get_log_commits_enabled() || stfhandler->stf_enable_log_commits()) {
+  if (p->get_log_commits_enabled() || stfhandler->get_enable_log_commits()) {
     commit_log_reset(p);
     commit_log_stash_privilege(p);
   }

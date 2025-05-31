@@ -135,14 +135,21 @@ struct StfHandler
                      duration_ms, mips);
   }
   // ---------------------------------------------------------------- 
-  // Getters
+  // Setter/Getters
   // ---------------------------------------------------------------- 
-  bool trace_memory_records()    {  return _trace_memory_records;   }
-  bool trace_register_state()    {  return _trace_register_state;   }
-  bool stf_enable_log_commits()  {  return _trace_memory_records
-                                        || _trace_register_state;   }
-  bool traced_instructions_running() {  return _traced_instructions_running; }
-  bool traced_instructions_region()  {  return _traced_instructions_region;  }
+  bool get_trace_memory_records() const { return _trace_memory_records; }
+  bool get_trace_register_state() const { return _trace_register_state; }
+  bool get_enable_log_commits() const
+    { return get_trace_memory_records() || get_trace_register_state(); }
+
+  void set_trace_memory_records(bool b) { _trace_memory_records = b; }
+  void set_trace_register_state(bool b) { _trace_register_state = b; }
+  // ---------------------------------------------------------------- 
+  // ---------------------------------------------------------------- 
+  bool traced_instructions_running() const
+    { return _traced_instructions_running; }
+  bool traced_instructions_region()  const
+    { return _traced_instructions_region; }
   // ---------------------------------------------------------------- 
   // ---------------------------------------------------------------- 
   void update_state(processor_t *proc,uint32_t bits,reg_t pc,reg_t npc)
