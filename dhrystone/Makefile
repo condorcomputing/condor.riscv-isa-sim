@@ -103,6 +103,7 @@ $(BIN)/dhrystone_opt1.$(ITRS).$(BM_FILE_EXT): $(BM_OPT1_OBJ)
 	@echo "compiling $@"
 	@mkdir -p bin
 	$(BM_CC) $(BM_OPT1) $(LNK_SCR) $(G_WARN) $^ -o $@
+	$(BM_OBJD) $(OFLAGS) $@ > $@.objdump
 
 # ----------------------------------------------------------------------
 # BM - OPT2
@@ -111,6 +112,7 @@ $(BIN)/dhrystone_opt2.$(ITRS).$(BM_FILE_EXT): $(SRC) $(HDR)
 	@mkdir -p bin
 	$(BM_CC) $(BM_OPT2) $(LNK_SCR) $(G_WARN) \
            $(SRC) $(BM_SRC) -o $@
+	$(BM_OBJD) $(OFLAGS) $@ > $@.objdump
 
 # ----------------------------------------------------------------------
 # BM - OPT3
@@ -119,6 +121,7 @@ $(BIN)/dhrystone_opt3.$(ITRS).$(BM_FILE_EXT): $(SRC) $(HDR)
 	@mkdir -p bin
 	$(BM_CC) $(BM_OPT3) $(LNK_SCR) $(G_WARN) \
            $(SRC) $(BM_SRC) -o $@
+	$(BM_OBJD) $(OFLAGS) $@ > $@.objdump
 
 # ----------------------------------------------------------------------
 # LNX - OPT1
@@ -138,6 +141,7 @@ $(BIN)/dhrystone_opt1.$(ITRS).$(LNX_FILE_EXT): $(LNX_OPT1_OBJ)
 	@echo "compiling $@"
 	@mkdir -p bin
 	$(LNX_CC) $(LNX_OPT1) $(G_WARN) $^ -o $@ $(LNX_LIBS)
+	$(LNX_OBJD) $(OFLAGS) $@ > $@.objdump
 	
 # ----------------------------------------------------------------------
 # LNX - OPT2
@@ -145,6 +149,7 @@ $(BIN)/dhrystone_opt2.$(ITRS).$(LNX_FILE_EXT): $(SRC) $(HDR)
 	@echo "compiling $@"
 	@mkdir -p bin
 	$(LNX_CC) $(LNX_OPT2) $(G_WARN) $(SRC) -o $@ $(LNX_LIBS)
+	$(LNX_OBJD) $(OFLAGS) $@ > $@.objdump
 
 # ----------------------------------------------------------------------
 # LNX - OPT3
@@ -152,6 +157,7 @@ $(BIN)/dhrystone_opt3.$(ITRS).$(LNX_FILE_EXT): $(SRC) $(HDR)
 	@echo "compiling $@"
 	@mkdir -p bin
 	$(LNX_CC) $(LNX_OPT3) $(G_WARN) $(SRC) -o $@ $(LNX_LIBS)
+	$(LNX_OBJD) $(OFLAGS) $@ > $@.objdump
 	
 # ----------------------------------------------------------------------
 help-%:
