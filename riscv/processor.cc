@@ -695,7 +695,7 @@ insn_func_t processor_t::decode_insn(insn_t insn)
     opcode_cache[idx].replace(insn.bits(), desc);
   }
 
-  return desc->func(xlen, rve, log_commits_enabled);
+  return desc->func(xlen, rve, get_log_or_stf_commits_enabled());
 }
 
 void processor_t::register_insn(insn_desc_t desc, bool is_custom) {
