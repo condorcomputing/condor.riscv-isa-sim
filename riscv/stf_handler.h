@@ -197,6 +197,7 @@ struct StfHandler
     bool stop_a =  is_stop_macro(fetch.insn.bits()) && exit_on_stop_opc;
     bool stop_b =  insn_count == UINT64_MAX ? false : executed_instructions >= insn_start+insn_count;
 
+
     if(unlikely(stop_a)) {
       info(proc,"trace stop  opc detected 0x%lx\n",PC);
     } 
@@ -341,8 +342,8 @@ struct StfHandler
     bool asid_match = (reg_t) prog_asid == _asid;
 
     //Instruction number tracing ignores all predicates
-    bool trace_this = (priv_in_range && !pending_exception && asid_match)
-                   || insn_num_tracing;
+    bool trace_this = (priv_in_range && !pending_exception && asid_match);
+
 
     if(trace_this) {
         uint32_t insn_bytes = (fetch.insn.bits() & 0x3) == 0x3 ? 4 : 2;
@@ -658,7 +659,7 @@ struct StfHandler
 
     char priv_mode = '\0';
 
-    uint32_t vpriv = state->prv;
+    uint32_t vpriv = state->last_inst_priv;
 
     switch (vpriv) {
       case 0: priv_mode = 'U'; break;
@@ -670,7 +671,7 @@ struct StfHandler
     }
 
     // hypervisor mode?
-    if ((priv_mode == 'S') && (!state->v)) {
+    if ((priv_mode == 'S') && (!state->prev_v)) {
       priv_mode = 'H';
     }
 
