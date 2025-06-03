@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include "decode_macros.h"
+#include "encoding.h"
 #include "stf_handler.h"
 #include <cassert>
 
@@ -250,6 +251,7 @@ void processor_t::step(size_t n)
     reg_t pc = state.pc;
     state.prv_changed = false;
     state.v_changed = false;
+    insn_fetch_t fetch;
 
     #define advance_pc() \
       if (unlikely(invalid_pc(pc))) { \
@@ -303,7 +305,7 @@ void processor_t::step(size_t n)
           }
 
           in_wfi = false;
-          insn_fetch_t fetch = mmu->load_insn(pc);
+          fetch = mmu->load_insn(pc);
           if (debug && !state.serialized)
             disasm(fetch.insn);
           pc = execute_insn_logged(this, pc, fetch);
@@ -334,7 +336,7 @@ void processor_t::step(size_t n)
 
         // Main simulation loop, fast path.
         for (auto ic_entry = _mmu->access_icache(pc); ; ) {
-          auto fetch = ic_entry->data;
+          fetch = ic_entry->data;
           //If this is the start macro we exit this loop and process 
           //in the slow loop
           if(unlikely(stfhandler->is_start_of_region(fetch.insn.bits()))) {
@@ -360,6 +362,11 @@ void processor_t::step(size_t n)
     catch(trap_t& t)
     {
       take_trap(t, pc);
+
+      if(unlikely(stfhandler->in_traceable_region())) {
+        stfhandler->trace_event(this,fetch,pc,get_state()->pc,t,"TRAP");
+      }
+
       n = instret;
 
       // If critical error then enter debug mode critical error trigger enabled
