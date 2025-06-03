@@ -412,8 +412,6 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
     debug_output_log(&s);
   }
 
-  state.taken_branch_flag = true;
-
   if (state.debug_mode) {
     if (t.cause() == CAUSE_BREAKPOINT) {
       state.pc = DEBUG_ROM_ENTRY;

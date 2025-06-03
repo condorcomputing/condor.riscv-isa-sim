@@ -170,8 +170,11 @@ struct StfHandler
     last_npc = npc;
     is_taken_branch = proc->get_state()->taken_branch_flag;
 
+    // TODO -- enable this check (needs to exclude trap COF)
+    /*
     if(pc != npc && npc != PC_SERIALIZE_BEFORE && npc != PC_SERIALIZE_AFTER) {
       insn_bytes = (bits & 0x3) == 0x3 ? 4 : 2;
+
       if (npc != pc + insn_bytes) {
         if (!is_taken_branch) {
            std::cerr << "UNDETECTED BRANCH from 0x" << std::hex << pc << " to 0x" << npc << std::endl;
@@ -179,6 +182,7 @@ struct StfHandler
         assert(is_taken_branch);
       }
     }
+   */
   }
   // ---------------------------------------------------------------- 
   // Common trace instruction method which selects specific trace
@@ -363,13 +367,13 @@ struct StfHandler
     }
 
     //Trace this instruction if it has the right PRIV level and PPN
-    bool priv_in_range = is_priv_mode_traceable(state, priv_modes);
+    bool priv_in_range = is_priv_mode_traceable(state->last_inst_priv, state->prev_v, priv_modes);
     bool pending_exception = false; //TODO find this in spike
 
     auto  _xlen = proc->get_xlen();
     reg_t _satp = state->satp->read();
     reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);
-    bool ppn_match = (reg_t) prog_ppn == _ppn;
+    bool ppn_match = (priv_modes == "U") ? (reg_t) prog_ppn == _ppn : true;
 
     //Instruction number tracing ignores all predicates
     bool trace_this = (priv_in_range && !pending_exception && ppn_match);
@@ -409,6 +413,83 @@ struct StfHandler
        }
     } else {
        stf_writer << stf::ForcePCRecord(state->pc);
+    }
+  }
+  // ----------------------------------------------------------------
+  // Common event tracing method, can be called on any event,
+  // in any trace mode, whether in trace region or not.
+  // ----------------------------------------------------------------
+  void trace_event(processor_t *p,insn_fetch_t &fetch,
+                  reg_t pc, reg_t npc, trap_t t, std::string debug="")
+  {
+    auto const state = p->get_state();
+
+    //tracing is not being used
+    if(!macro_tracing && !insn_num_tracing) {
+      LOG("-trace_insn "+debug+" NOTHING SELECTED");
+      return;
+    }
+
+    // TODO
+    std::vector<uint64_t> content_data;
+    content_data.push_back(0);
+
+    //Trace this event if it occurred in a traced privilege mode and
+    // is handled in a traced privilege mode
+    bool priv_in_range = is_priv_mode_traceable(state->last_inst_priv, state->prev_v, priv_modes) &&
+                         is_priv_mode_traceable(state->prv, state->v, priv_modes);
+
+    auto  _xlen = p->get_xlen();
+    reg_t _satp = state->satp->read();
+    reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);
+    bool ppn_match = (priv_modes == "U") ? (reg_t) prog_ppn == _ppn : true;
+
+    //Trace this event if the privilege is in range, the process is traced,
+    // and event tracing is enabled.
+    bool trace_this_event = (priv_in_range && ppn_match);
+
+    // This is a COF which is not a branch
+    state->taken_branch_flag = false;
+
+    if(trace_this_event && stf_writer) {
+      if (_in_trace_region) {
+
+         // Register/memory records must come before event records
+         if(_trace_register_state) {
+           emit_register_records(p);
+           p->get_state()->log_reg_write.clear();
+         }
+
+         if(_trace_memory_records) {
+           emit_memory_records(p);
+           p->get_state()->log_mem_read.clear();
+           p->get_state()->log_mem_write.clear();
+         }
+
+         // If we are tracing events, emit a PC update on the
+         // trapped instruction (must be before event records)
+         stf_writer << stf::InstPCTargetRecord(npc);
+
+         stf_writer << stf::EventRecord(stf::EventRecord::_STF_ENUM_TYPE::TYPE((uint64_t)t.cause()), content_data);
+         stf_writer << stf::EventPCTargetRecord((uint64_t) npc);
+      }
+    }
+
+    if (t.cause() == CAUSE_USER_ECALL || t.cause() == CAUSE_SUPERVISOR_ECALL || trace_this_event) {
+      insn_fetch_t _fetch = fetch;
+
+      // If the event was an interrupt or a fetch-related exception,
+      // there is no valid instruction to trace, so trace nop (0).
+      if ((t.cause() & ((reg_t)1 << (p->get_isa().get_max_xlen() - 1))) ||
+          (t.cause() == CAUSE_MISALIGNED_FETCH) ||
+          (t.cause() == CAUSE_FETCH_ACCESS) ||
+          (t.cause() == CAUSE_ILLEGAL_INSTRUCTION) ||
+          (t.cause() == CAUSE_FETCH_PAGE_FAULT )) {
+              _fetch = (insn_fetch_t)0;
+      }
+      trace_insn(p, _fetch, pc, npc, debug);
+    } else {
+      force_pc_record(state->pc);
     }
   }
 
@@ -693,11 +774,11 @@ struct StfHandler
   }
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
-  bool is_priv_mode_traceable(const state_t* state, const std::string& priv_string) {
+  bool is_priv_mode_traceable(reg_t priv, reg_t v, const std::string& priv_string) {
 
     char priv_mode = '\0';
 
-    uint32_t vpriv = state->last_inst_priv;
+    uint32_t vpriv = priv;
 
     switch (vpriv) {
       case 0: priv_mode = 'U'; break;
@@ -709,7 +790,7 @@ struct StfHandler
     }
 
     // hypervisor mode?
-    if ((priv_mode == 'S') && (!state->prev_v)) {
+    if ((priv_mode == 'S') && (!v)) {
       priv_mode = 'H';
     }
 
@@ -718,6 +799,13 @@ struct StfHandler
     }
 
     return false;
+  }
+  // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  void force_pc_record(reg_t pc) {
+    if (stf_writer) {
+      stf_writer << stf::ForcePCRecord(pc);
+    }
   }
   // ----------------------------------------------------------------
   // option support methods
