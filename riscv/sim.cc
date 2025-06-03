@@ -338,7 +338,6 @@ void sim_t::configure_log(bool enable_log, bool enable_commitlog,
   log = enable_log;
 
   if(enable_stf_log) {
-    enable_commitlog = true;
     procs.at(0)->enable_stf_commits();
   }
 
