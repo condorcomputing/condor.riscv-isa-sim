@@ -167,8 +167,8 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
 {
   if (p->get_log_commits_enabled() || stfhandler->stf_enable_log_commits()) {
     commit_log_reset(p);
-    commit_log_stash_privilege(p);
   }
+  commit_log_stash_privilege(p);
 
   reg_t npc_or_serialize_flag;
   reg_t npc;
