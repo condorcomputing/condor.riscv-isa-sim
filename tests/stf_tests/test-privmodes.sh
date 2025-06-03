@@ -39,30 +39,26 @@ check_trace_dump()
                 if ! grep -q "$pattern" "$DUMP_OUT"; then
                     echo "Instruction trace ($pattern) not found from mode $letter" >> "$logfile"
                     STATUS=1
-		#else
-	        #    echo "Expected $letter trace $pattern, and found it..." >> $logfile
 		fi
 
-                # Get the address of a traced instruction from the objdump, and check that
+                # Get the address of a traced instruction from the 
+                # objdump, and check that
                 INST_TO_MATCH=$pattern
 		if ! check_inst_trace_addr $INST_TO_MATCH $DUMP_OUT $RISCV_BIN $testname_basic; then
                   STATUS=1
-		#else
-		#   echo "Found traced instruction at expected address ${address}"
                 fi
             else
                 # we do _not_ expect a trace here
                 if grep -q -- "$pattern" "$DUMP_OUT"; then
                     echo "Instruction trace found from mode $letter. Expected traces from mode(s): $mode" >> "$logfile"
                     STATUS=1
-		#else
-	        #    echo "Didn't expect to see $letter trace $pattern, and didn't find it..." >> $logfile
 		fi
             fi
         done
 }
 
-# To make sure we cover all the combinations of the 4 modes, use the bits of numbers 1-15
+# To make sure we cover all the combinations of the 4 modes, 
+# use the bits of numbers 1-15
 for i in {1..15}; do
 	mode=""
 	((i & 8)) && mode+="M"
@@ -84,5 +80,21 @@ for i in {1..15}; do
 		echo $SPIKE_COMMAND >> $logfile
 	fi
 done
+
+export SPIKE_OPTS="--stf_insn_num_tracing --stf_insn_start 0"
+
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+
+if [ $? -eq 0 ]; then
+	#echo "Checking trace file for mode string $mode..." >> $logfile
+        INST_TO_MATCH=$expected_U
+	if ! check_inst_trace_addr $INST_TO_MATCH $DUMP_OUT $RISCV_BIN $testname_basic; then
+          STATUS=1
+	#else
+	#   echo "Found traced instruction at expected address ${address}"
+        fi
+else
+	STATUS=1
+fi
 
 exit $STATUS

@@ -48,6 +48,9 @@ hypervisor_start:
     la t0, user_start
     csrw sepc, t0
     sret
+    nop
+    nop
+    nop
 
 # =================== USER MODE ============================
 user_start:
