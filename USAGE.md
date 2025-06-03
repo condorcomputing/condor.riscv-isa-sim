@@ -23,8 +23,6 @@
 
 1. [(planned) Automating Linux Tracing with initd](#automating-linux-tracing-with-initd)
 
-1. [(planned) Creating BBVs under Linux](#creating-bbvs-under-linux)
-
 --------
 
 ## Building the Bare Metal Dhrystone Example
@@ -216,7 +214,7 @@ coremark, coremark-pro.
 
 ## Automating Linux Tracing with initd
 
-Automatic tracing of a linux based application is done using by passing
+Automatic tracing of a linux based is done using by passing
 the name of the elf through boot args. An init.d script called S99runprogram
 unpacks the boot args and executes the specified elf
 
@@ -236,7 +234,26 @@ compressed trace file and exit.
 
 ### Initd details
 
+During execution of `scripts/build-trace-rootfs.sh` the script installs
+the trace enabled elfs as well the init.d script `S99runprogram`. The
+script performs an incremental compile of the file system and moves it
+to the common area, `riscv-linux`.
 
-## Creating BBVs under Linux
+The script `scripts/boot-linux.sh` appends an additional boot arg to 
+the default boot args, the argument is trace_elf=${AUTO_TRACE}
+Where AUTO_TRACE is the file name supplied by --auto_trace.
 
-PLACEHOLDER
+The trace_elf boot arg is expected to be a trace enabled ELF name within the
+/root/trace_elfs subdirectory. The path is not included, only the name
+of the ELF.
+
+The S99runprogram script runs after all init.d scripts labeled S98 and lower. 
+S99 parses the boot args for the name supplied with trace_elf, forms the
+expected path and tries to execute it.
+
+In the example above the --stf_exit_on_stop_opc is used to automatically
+exit linux and spike. 
+
+The combination of these settings provides the automatic execution of
+linux, tracing of the target elf and shut down of the simulator.
+
