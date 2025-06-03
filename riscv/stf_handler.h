@@ -361,12 +361,12 @@ struct StfHandler
         //skip_record = PC != proc->get_last_pc() + insn_bytes;
 
         if(!skip_record) {
-          if(_trace_memory_records) {
-            emit_memory_records(proc);
-          }
-
           if(_trace_register_state) {
             emit_register_records(proc);
+          }
+
+          if(_trace_memory_records) {
+            emit_memory_records(proc);
           }
 
           if(insn_bytes == 4) {
