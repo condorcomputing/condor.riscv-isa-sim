@@ -332,14 +332,9 @@ void sim_t::set_quiet_mode(bool value)
   }
 }
 
-void sim_t::configure_log(bool enable_log, bool enable_commitlog,
-                          bool enable_stf_log)
+void sim_t::configure_log(bool enable_log, bool enable_commitlog)
 {
   log = enable_log;
-
-  if(enable_stf_log) {
-    procs.at(0)->enable_stf_commits();
-  }
 
   if (!enable_commitlog)
     return;

@@ -269,10 +269,7 @@ public:
   void enable_log_commits();
   bool get_log_commits_enabled() const { return log_commits_enabled; }
 
-  void enable_stf_commits() { stf_commits_enabled = true; }
-  bool get_log_or_stf_commits_enabled() const {
-    return log_commits_enabled || stf_commits_enabled;
-  }
+  bool get_log_or_stf_commits_enabled() const;
 
   void reset();
   void step(size_t n); // run for n cycles
@@ -409,7 +406,6 @@ private:
   bool histogram_enabled;
   bool quiet_mode_is_set{false};
   bool log_commits_enabled;
-  bool stf_commits_enabled{false};
   FILE *log_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
