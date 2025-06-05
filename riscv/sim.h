@@ -50,8 +50,7 @@ public:
   //
   // If enable_log is true, an instruction trace will be generated. If
   // enable_commitlog is true, so will the commit results
-  // if enable_stf_log is true commit results will be captured
-  void configure_log(bool enable_log, bool enable_commitlog, bool enable_stf_log);
+  void configure_log(bool enable_log, bool enable_commitlog);
 
   void set_procs_debug(bool value);
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {

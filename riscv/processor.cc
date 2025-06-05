@@ -850,3 +850,7 @@ void processor_t::trigger_updated(const std::vector<triggers::trigger_t *> &trig
     }
   }
 }
+
+bool processor_t::get_log_or_stf_commits_enabled() const {
+  return log_commits_enabled || stfhandler->in_traceable_region();
+}
