@@ -155,10 +155,16 @@ struct StfHandler
   void update_state(processor_t *proc,uint32_t bits,reg_t pc,reg_t npc)
   {
     last_npc = npc;
-    is_taken_branch = false;
+    is_taken_branch = proc->get_state()->taken_branch_flag;
+
     if(pc != npc && npc != PC_SERIALIZE_BEFORE && npc != PC_SERIALIZE_AFTER) {
       insn_bytes = (bits & 0x3) == 0x3 ? 4 : 2;
-      is_taken_branch = npc != pc + insn_bytes;
+      if (npc != pc + insn_bytes) {
+        if (!is_taken_branch) {
+           std::cerr << "UNDETECTED BRANCH from 0x" << std::hex << pc << " to 0x" << npc << std::endl;
+        }
+        assert(is_taken_branch);
+      }
     }
   }
   // ---------------------------------------------------------------- 

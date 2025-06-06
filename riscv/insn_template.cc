@@ -7,7 +7,8 @@
 
 #define PROLOGUE \
   reg_t npc = sext_xlen(pc + insn_length(OPCODE)); \
-  if (!p->extension_enabled(EXT_ZCA)) assume(insn_length(OPCODE) % 4 == 0)
+  if (!p->extension_enabled(EXT_ZCA)) assume(insn_length(OPCODE) % 4 == 0); \
+  STATE.taken_branch_flag = false
 
 #define EPILOGUE \
   trace_opcode(p, OPCODE, insn); \
