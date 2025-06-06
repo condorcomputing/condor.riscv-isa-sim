@@ -617,7 +617,6 @@ struct StfHandler
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
   void close_trace() {
-    stf_writer << stf::InstOpcode32Record(_TERM_TRACE);
     stf_writer.flush();
     stf_writer.close();
   }
@@ -860,11 +859,6 @@ private:
 
   static constexpr uint32_t _START_TRACE = 0x00004033; //xor x0,x0,x0
   static constexpr uint32_t _STOP_TRACE  = 0x0010c033; //xor x0,x1,x1
-
-  //CAWS-35 - there is no public way to determine if the stf_lib compression
-  //buffer is in an incomplete state. Always write this NOP before
-  //calling writer.flush and write.close.
-  static constexpr uint32_t _TERM_TRACE  = 0x00000013; //addi x0,x0,0
 
   static constexpr uint64_t _ASID_MASK   = 0x000000000000FFFF;
   static constexpr uint32_t _CMP_MASK    = 0x0000FFFF;
