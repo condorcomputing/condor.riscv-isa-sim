@@ -6,7 +6,8 @@
 #define DECODE_MACRO_USAGE_LOGGED 0
 
 #define PROLOGUE \
-  reg_t npc = sext_xlen(pc + insn_length(OPCODE))
+  reg_t npc = sext_xlen(pc + insn_length(OPCODE)); \
+  STATE.taken_branch_flag = false
 
 #define EPILOGUE \
   trace_opcode(p, OPCODE, insn); \

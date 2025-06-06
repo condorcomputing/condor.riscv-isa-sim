@@ -227,12 +227,14 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
 #define set_pc(x) \
   do { p->check_pc_alignment(x); \
        npc = sext_xlen(x); \
+       STATE.taken_branch_flag = true; \
      } while (0)
 
 #define set_pc_and_serialize(x) \
   do { reg_t __npc = (x) & p->pc_alignment_mask(); \
        npc = PC_SERIALIZE_AFTER; \
        STATE.pc = __npc; \
+       STATE.taken_branch_flag = true; \
      } while (0)
 
 class wait_for_interrupt_t {};
@@ -242,7 +244,10 @@ class wait_for_interrupt_t {};
        throw wait_for_interrupt_t(); \
      } while (0)
 
-#define serialize() set_pc_and_serialize(npc)
+#define serialize() \
+  do { set_pc_and_serialize(npc); \
+       STATE.taken_branch_flag = false; \
+     } while (0)
 
 /* Sentinel PC values to serialize simulator pipeline */
 #define PC_SERIALIZE_BEFORE 3

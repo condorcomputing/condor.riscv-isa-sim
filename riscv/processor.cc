@@ -388,6 +388,7 @@ void processor_t::enter_debug_mode(uint8_t cause, uint8_t extcause)
   state.elp = elp_t::NO_LP_EXPECTED;
   set_privilege(PRV_M, false);
   state.dpc->write(state.pc);
+  state.taken_branch_flag = true;
   state.pc = DEBUG_ROM_ENTRY;
   in_wfi = false;
 }
@@ -417,6 +418,8 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
          << zext(t.get_tval(), max_xlen) << std::endl;
     debug_output_log(&s);
   }
+
+  state.taken_branch_flag = true;
 
   if (state.debug_mode) {
     if (t.cause() == CAUSE_BREAKPOINT) {

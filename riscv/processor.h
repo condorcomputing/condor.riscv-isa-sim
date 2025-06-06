@@ -202,6 +202,8 @@ struct state_t
 
   elp_t elp;
 
+  bool taken_branch_flag;
+
   bool critical_error;
 
  private:
