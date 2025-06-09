@@ -39,7 +39,7 @@ test_insn_trace_count() {
 
   # Count lines starting with "INST16" or "INST32" in the dump file
   INSN_ACTUAL_COUNT=$(awk '/^(INST16|INST32)/ {count++} END {print count}' $DUMP_OUT)
-  if (( $INSN_ACTUAL_COUNT - 1 != $INSN_EXPECTED_COUNT )); then
+  if (( $INSN_ACTUAL_COUNT != $INSN_EXPECTED_COUNT )); then
     echo "$0: expected $INSN_EXPECTED_COUNT opcodes in instruction trace but found $INSN_ACTUAL_COUNT" >> $logfile
     echo "Spike command:" >> $logfile
     echo $SPIKE_COMMAND >> $logfile
