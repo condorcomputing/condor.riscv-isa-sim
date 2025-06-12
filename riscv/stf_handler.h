@@ -105,6 +105,7 @@ struct StfHandler
        time_point<high_resolution_clock> &start)
   {
     std::vector<long int> bbv_insns_per_core;
+    std::vector<uint64_t> bbv_insn_roi_start_per_core;
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start).count();
     double duration_ms = static_cast<double>(duration);
@@ -133,13 +134,18 @@ struct StfHandler
       for(size_t idx=0;idx<cfg.nprocs();++idx) {
         auto bbv_num_insns = s.get_core(idx)->get_bb_tracer().get_total_insns();
         fprintf(stderr,"-I:   BBV instructions, core %ld    %ld\n", idx, bbv_num_insns);
-	bbv_insns_per_core.push_back(bbv_num_insns);
+        bbv_insns_per_core.push_back(bbv_num_insns);
+      }
+      for(size_t idx=0;idx<cfg.nprocs();++idx) {
+        auto bbv_insn_count_roi_start = s.get_core(idx)->get_bb_tracer().get_insn_count_on_roi_start();
+        fprintf(stderr,"-I:   BBV ROI start insn, core %ld  %ld\n", idx, bbv_insn_count_roi_start);
+        bbv_insn_roi_start_per_core.push_back(bbv_insn_count_roi_start);
       }
     }
 
     write_json_stats(_traced_instructions_running,
                      executed_instructions, instret_count,
-                     duration_ms, mips, bbv_insns_per_core);
+                     duration_ms, mips, bbv_insns_per_core, bbv_insn_roi_start_per_core);
   }
   // ---------------------------------------------------------------- 
   // Getters
@@ -407,11 +413,12 @@ struct StfHandler
   // a json emitter
   // ---------------------------------------------------------------- 
   bool write_json_stats(uint64_t traced_instructions_running,
-                        uint64_t executed_instructions,
+                        uint64_t exec_instructions,
                         uint64_t instret_count,
                         double   duration_ms,
                         double   mips,
-                        std::vector<long int> num_bbv_insns)
+                        std::vector<long int> num_bbv_insns,
+                        std::vector<uint64_t> roi_start_insn_cnt)
   {
     std::ofstream jout(stats_file_name.c_str());
 
@@ -424,10 +431,10 @@ struct StfHandler
     jout<<"  \"stats\" : {"<<std::endl;
 
     jout<<"    \"traced_instructions\" : "
-        << std::dec<< _traced_instructions_running<<","<<std::endl;
+        << std::dec<< traced_instructions_running<<","<<std::endl;
 
     jout<<"    \"executed_instructions\" : "
-        << std::dec<< executed_instructions<<","<<std::endl;
+        << std::dec<< exec_instructions<<","<<std::endl;
 
     jout<<"    \"instructions_retired\" : "
         << std::dec<< instret_count <<","<<std::endl;
@@ -436,11 +443,16 @@ struct StfHandler
         << std::fixed << std::setprecision(3)<<duration_ms <<","<<std::endl;
 
     jout<<"    \"wall_clock_mips\" : "
-        << std::fixed << std::setprecision(3) << mips <<std::endl;
+        << std::fixed << std::setprecision(3) << mips <<","<<std::endl;
 
     for (size_t i=0; i<num_bbv_insns.size(); i++) {
         jout<<"    \"cpu" << std::dec << i << "_bbv_total_isns\" : "
-            << num_bbv_insns[i] << std::endl;
+            << num_bbv_insns[i] <<","<<std::endl;
+    }
+
+    for (size_t i=0; i<roi_start_insn_cnt.size(); i++) {
+        jout<<"    \"cpu" << std::dec << i << "_bbv_roi_started\" : "
+            << roi_start_insn_cnt[i] <<std::endl;
     }
 
     jout<<"  }"<<std::endl;
