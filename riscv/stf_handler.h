@@ -67,6 +67,12 @@ struct stf_reg_access_t
   {}
   uint64_t idx;
 };
+
+class stf_trace_complete: public std::runtime_error {
+public:
+    explicit stf_trace_complete(const std::string &what)
+            : std::runtime_error(what) {}
+};
 // ==========================================================================
 // Instruction tracing, STF format
 //
@@ -94,7 +100,7 @@ struct StfHandler
   //Do any required cleanup before forcing exit, nothing currently
   // ---------------------------------------------------------------- 
   void terminate_simulator() {
-    exit(0);
+    throw stf_trace_complete("STF trace capture complete.\n");
   }
   // ---------------------------------------------------------------- 
   // ---------------------------------------------------------------- 
@@ -145,7 +151,8 @@ struct StfHandler
 
     write_json_stats(_traced_instructions_running,
                      executed_instructions, instret_count,
-                     duration_ms, mips, bbv_insns_per_core, bbv_insn_roi_start_per_core);
+                     duration_ms, mips, bbv_insns_per_core, bbv_insn_roi_start_per_core,
+                     _traced_warmup_insns);
   }
   // ---------------------------------------------------------------- 
   // Getters
@@ -254,6 +261,12 @@ struct StfHandler
     }
 
     if(_in_trace_region) {
+
+      if (executed_instructions + 1 == insn_start+warmup_size) {
+         _traced_warmup_insns = _traced_instructions_running;
+      }
+
+
       trace_element(proc,fetch,debug);
     }
   }
@@ -356,7 +369,6 @@ struct StfHandler
     //Instruction number tracing ignores all predicates
     bool trace_this = (priv_in_range && !pending_exception && asid_match);
 
-
     if(trace_this) {
         uint32_t insn_bytes = (fetch.insn.bits() & 0x3) == 0x3 ? 4 : 2;
 
@@ -418,7 +430,8 @@ struct StfHandler
                         double   duration_ms,
                         double   mips,
                         std::vector<long int> num_bbv_insns,
-                        std::vector<uint64_t> roi_start_insn_cnt)
+                        std::vector<uint64_t> roi_start_insn_cnt,
+                        uint64_t warmup_region_insns)
   {
     std::ofstream jout(stats_file_name.c_str());
 
@@ -452,8 +465,11 @@ struct StfHandler
 
     for (size_t i=0; i<roi_start_insn_cnt.size(); i++) {
         jout<<"    \"cpu" << std::dec << i << "_bbv_roi_started\" : "
-            << roi_start_insn_cnt[i] <<std::endl;
+            << roi_start_insn_cnt[i] <<","<<std::endl;
     }
+
+    jout<<"    \"warmup_region_instructions\" : "
+        << std::dec<< warmup_region_insns <<std::endl;
 
     jout<<"  }"<<std::endl;
     jout<<"}"<<std::endl;
@@ -744,6 +760,8 @@ struct StfHandler
     E("                         Specify which privilege modes to include\n");
     E("                         in the trace. Accepts any combination of\n");
     E("                         M,H,S, and U (default USHM)\n");
+    E("  --stf_warmup_size <N>  Record the number of --stf_priv_modes instructions\n");
+    E("                         in the first --stf_warmup_size total instructions.\n");
     E("  --stf_force_zero_sha   Emit 0 for all SHA's in the STF header.\n");
     E("                         For regression and other testing purposes\n");
     E("                         (default false)\n");
@@ -802,6 +820,10 @@ struct StfHandler
       insn_count = strtoull(s, nullptr, 0);
     });
 
+    parser.option(0,"stf_warmup_size", 1, [&](const char* s){
+      warmup_size = strtoull(s, nullptr, 0);
+    });
+
     parser.option(0,"stf_include_macros", 0, [&](const char UNUSED *s){
       include_trace_macros = true;
     });
@@ -857,6 +879,7 @@ public:
 
   uint64_t insn_start{0};           //limit
   uint64_t insn_count{UINT64_MAX};  //limit
+  uint64_t warmup_size{0};
 
   std::string priv_modes{"USHM"};
   stf::STFWriter stf_writer;
@@ -881,6 +904,7 @@ private:
   bool _trace_register_state{false};
   uint64_t _traced_instructions_region{0};
   uint64_t _traced_instructions_running{0};
+  uint64_t _traced_warmup_insns{0};
 
   static constexpr uint32_t _START_TRACE = 0x00004033; //xor x0,x0,x0
   static constexpr uint32_t _STOP_TRACE  = 0x0010c033; //xor x0,x1,x1
