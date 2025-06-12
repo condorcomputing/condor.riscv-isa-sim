@@ -570,6 +570,10 @@ int main(int argc, char** argv)
     std::cout << e.what();
     return_code = 0;
   }
+  catch(stf_trace_complete &e) {
+    std::cout << e.what();
+    return_code = 0;
+  }
 
   if(stfhandler->stf_writer_enabled()) {
     stfhandler->close_trace();
