@@ -9,7 +9,7 @@ namespace bb_ctrl {
     }
 
     bool simpoint_csr_t::unlogged_write(const reg_t value) noexcept {
-        proc->get_bb_tracer().handle_simpoint_macro(proc->get_last_pc(), value);
+        proc->get_bb_tracer().handle_simpoint_macro(proc->get_last_pc(), value, proc->get_state()->minstret->read());
         return true;
     }
 } // namespace bb_ctrl
@@ -91,11 +91,15 @@ void bb_tracer::simpoint_step(uint64_t steps, uint64_t pc) {
 
 bool bb_tracer::in_region_of_interest() const {return m_simpoint_roi;}
 
-long int bb_tracer::get_total_insns() {
+long int bb_tracer::get_total_insns() const {
     return m_total_insn_in_roi;
 }
 
-void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept {
+uint64_t bb_tracer::get_insn_count_on_roi_start() const {
+  return m_insn_num_roi_started;
+}
+
+void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64_t executed_insn_cnt) noexcept {
     if(m_en_bbv)
     {
         if ((val & 3) == 2) {
@@ -118,6 +122,7 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept {
             m_simpoint_roi = true;
             m_simpoint_en_pc = pc;
             m_total_insn_in_roi = 0;
+            m_insn_num_roi_started = executed_insn_cnt;
         }
         std::cerr.flush();
     }

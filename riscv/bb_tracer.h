@@ -43,11 +43,13 @@ public:
 
     void simpoint_step(uint64_t steps, uint64_t pc);
 
-    void handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept;
+    void handle_simpoint_macro(uint64_t pc, reg_t val, uint64_t executed_insn_cnt) noexcept;
 
     bool in_region_of_interest() const;
 
-    long int get_total_insns();
+    long int get_total_insns() const;
+
+    uint64_t get_insn_count_on_roi_start() const;
 
 private:
     int capture_basic_block(uint64_t pc);
@@ -81,6 +83,7 @@ private:
     uint64_t m_last_pc{0};
     uint64_t m_simpoint_en_pc{0};
     long int m_total_insn_in_roi{0};
+    uint64_t m_insn_num_roi_started{0};
 };
 
 namespace bb_tracer_options {
