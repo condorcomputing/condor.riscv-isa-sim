@@ -9,6 +9,13 @@ namespace bb_ctrl {
     }
 
     bool simpoint_csr_t::unlogged_write(const reg_t value) noexcept {
+        std::cerr << "Write to BB Tracer CSR observed" << std::endl;
+
+        // For STF trace:
+        if (!bb_tracer_options::en_bbv) {
+          proc->simpoint_csr_write_notify(value);
+        }
+
         proc->get_bb_tracer().handle_simpoint_macro(proc->get_last_pc(), value, proc->get_state()->minstret->read());
         return true;
     }
