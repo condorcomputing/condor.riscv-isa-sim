@@ -382,6 +382,8 @@ public:
 
   bb_tracer& get_bb_tracer() {return m_bb_tracer;}
 
+  void simpoint_csr_write_notify(const reg_t value);
+
 private:
   const isa_parser_t isa;
   const cfg_t * const cfg;
