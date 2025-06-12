@@ -198,6 +198,10 @@ struct StfHandler
     E("  --stf_insn_start <N>   Start STF tracing after N instructions.\n");
     E("  --stf_insn_count <N>   Terminate STF tracing after N instructions\n");
     E("                         from stf_insn_start.\n");
+    E("  --stf_count_from_bbv_roi\n");
+    E("                         --stf_insn_start/--stf_insn_count values are\n");
+    E("                         relative to the BBV simpoint CSR enable write\n");
+    E("                         instruction.\n");
     E("  --stf_exit_on_stop_opc Terminate the simulation after detecting a\n");
     E("                         STOP_TRACE opcode. Using this switch\n");
     E("                         disables non-contiguous region tracing.\n");
@@ -317,6 +321,14 @@ struct StfHandler
       insn_count = strtoull(s, nullptr, 0);
     });
 
+    parser.option(0,"stf_count_from_bbv_roi", 0, [&](const char* s){
+      if (!tracer_cfg_started) {
+         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
+         exit(1);
+      }
+      count_from_bbv_roi = true;
+    });
+
     parser.option(0,"stf_warmup_size", 1, [&](const char* s){
       if (!tracer_cfg_started) {
          std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
@@ -368,6 +380,12 @@ struct StfHandler
     return ok;
   }
 
+  void simpoint_csr_write_notify(processor_t *const proc, const reg_t value) {
+    for (auto tracer : tracers) {
+      tracer->simpoint_csr_write_notify(proc, value);
+    }
+  }
+
   // more singleton 
   static StfHandler *instance;
 
@@ -387,6 +405,7 @@ struct StfHandler
     insn_start = 0;
     insn_count = UINT64_MAX;
     warmup_size = 0;
+    count_from_bbv_roi = false;
 
     priv_modes = "USHM";
   }
@@ -406,13 +425,13 @@ struct StfHandler
         insn_start,
         insn_count,
         warmup_size,
+        count_from_bbv_roi,
         include_trace_macros,
         stf_verbose,
         stats_file_name
       );
     tracers.push_back(tracer);
   }
-
 
 public:
   std::string trace_file_name{""};
@@ -430,6 +449,7 @@ public:
   uint64_t insn_start{0};           //limit
   uint64_t insn_count{UINT64_MAX};  //limit
   uint64_t warmup_size{0};
+  bool count_from_bbv_roi{false};
 
   std::string priv_modes{"USHM"};
 

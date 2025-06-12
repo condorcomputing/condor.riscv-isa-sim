@@ -234,7 +234,10 @@ struct StfTracer
       auto  _xlen = proc->get_xlen();
       reg_t _satp = proc->get_state()->satp->read();
       reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
-      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+      int64_t _prog_ppn= (uint64_t) (_ppn & _PPN_MASK);
+      if (_prog_ppn != prog_ppn) {
+        std::cerr << "-E: First instruction of trace capture is NOT the trace workload process" << std::endl;
+      }
 
       if(_trace_memory_records) {
         proc->get_mmu()->flush_tlb();
@@ -809,8 +812,27 @@ struct StfTracer
       ok = false;
     }
 
+    if (count_from_bbv_roi) {
+      insn_num_tracing = false;
+    }
+
     return ok;
   }
+
+  void simpoint_csr_write_notify(processor_t *const proc, const reg_t value) {
+    if (!count_from_bbv_roi) {
+      return;
+    }
+
+    insn_num_tracing = true;
+    executed_instructions = 0;
+
+    auto  _xlen = proc->get_xlen();
+    reg_t _satp = proc->get_state()->satp->read();
+    reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
+    prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+  }
+
 
 public:
   std::string trace_file_name{""};
@@ -831,6 +853,7 @@ public:
   uint64_t insn_start{0};           //limit
   uint64_t insn_count{UINT64_MAX};  //limit
   uint64_t warmup_size{0};
+  bool count_from_bbv_roi{false};
 
   std::string priv_modes{"USHM"};
   stf::STFWriter stf_writer;
@@ -880,6 +903,7 @@ public:
     uint64_t insn_start,
     uint64_t insn_count,
     uint64_t warmup_size,
+    bool count_from_bbv_roi,
     bool include_trace_macros,
     bool stf_verbose,
     std::string stats_file_name) :
@@ -894,6 +918,7 @@ public:
     insn_start(insn_start),
     insn_count(insn_count),
     warmup_size(warmup_size),
+    count_from_bbv_roi(count_from_bbv_roi),
     priv_modes(priv_modes),
     _trace_memory_records(_trace_memory_records),
     _trace_register_state(_trace_register_state) {};
