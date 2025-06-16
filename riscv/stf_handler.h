@@ -241,8 +241,13 @@ struct StfHandler
     //First time reaching this insn count
     if(executed_instructions == insn_start) {
       info(proc,"trace start insn count reached PC:0x%lx\n",PC);
-      //fprintf(stderr,"-I: trace start insn count reached PC:0x%lx\n",PC);
+
       _in_trace_region = true;
+
+      auto  _xlen = proc->get_xlen();
+      reg_t _satp = proc->get_state()->satp->read();
+      reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
+      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
 
       if((bool)stf_writer == false)  {
         open_trace(proc,fetch);
@@ -305,9 +310,9 @@ struct StfHandler
 
       auto  _xlen = proc->get_xlen();
       reg_t _satp = proc->get_state()->satp->read();
-      reg_t _asid = get_field(_satp, _xlen == 32 ? SATP32_ASID : SATP64_ASID);
+      reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
 
-      prog_asid = (uint64_t) (_asid & _ASID_MASK);
+      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
 
       //We are already in trace_macro_insn and so slow loop
       _pending_region = false;
@@ -344,17 +349,17 @@ struct StfHandler
       open_trace(proc,fetch);
     }
 
-    //Trace this instruction if it has the right PRIV level and ASID
+    //Trace this instruction if it has the right PRIV level and PPN
     bool priv_in_range = is_priv_mode_traceable(state, priv_modes);
     bool pending_exception = false; //TODO find this in spike
 
     auto  _xlen = proc->get_xlen();
     reg_t _satp = state->satp->read();
-    reg_t _asid = get_field(_satp,_xlen == 32 ? SATP32_ASID : SATP64_ASID);
-    bool asid_match = (reg_t) prog_asid == _asid;
+    reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);
+    bool ppn_match = (reg_t) prog_ppn == _ppn;
 
     //Instruction number tracing ignores all predicates
-    bool trace_this = (priv_in_range && !pending_exception && asid_match);
+    bool trace_this = (priv_in_range && !pending_exception && ppn_match);
 
     if(trace_this) {
         uint32_t insn_bytes = (fetch.insn.bits() & 0x3) == 0x3 ? 4 : 2;
@@ -873,7 +878,7 @@ public:
 
   //Run time options
   uint32_t highest_priv_mode{0};
-  int64_t  prog_asid{-1};
+  int64_t  prog_ppn{-1};
 
   //This flag is used to exit fast loop and enter slow loop.
   //This is set when start macro has been detected
@@ -896,7 +901,7 @@ private:
   static constexpr uint32_t _START_TRACE = 0x00004033; //xor x0,x0,x0
   static constexpr uint32_t _STOP_TRACE  = 0x0010c033; //xor x0,x1,x1
 
-  static constexpr uint64_t _ASID_MASK   = 0x000000000000FFFF;
+  static constexpr uint64_t _PPN_MASK   = 0x00000FFFFFFFFFFF;
   static constexpr uint32_t _CMP_MASK    = 0x0000FFFF;
   // ----------------------------------------------------------------
   // more singleton 
