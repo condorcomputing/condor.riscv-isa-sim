@@ -345,8 +345,8 @@ struct StfHandler
   
       //Optionally exclude the trace macros from the trace
       if (!include_trace_macros) {
-         stf_writer << stf::ForcePCRecord(last_npc);
-	 return;
+        _pc_record_stale = true;
+        return;
       }
     }
 
@@ -383,6 +383,11 @@ struct StfHandler
 
         bool skip_record = false;
 
+        if(_pc_record_stale) {
+          force_pc_record(PC);
+          _pc_record_stale = false;
+        }
+
         if(is_taken_branch) {
           stf_writer << stf::InstPCTargetRecord(last_npc);
         }
@@ -412,7 +417,7 @@ struct StfHandler
           ++_traced_instructions_running;
        }
     } else {
-       stf_writer << stf::ForcePCRecord(state->pc);
+       _pc_record_stale = true;
     }
   }
   // ----------------------------------------------------------------
@@ -489,7 +494,7 @@ struct StfHandler
       }
       trace_insn(p, _fetch, pc, npc, debug);
     } else {
-      force_pc_record(state->pc);
+      _pc_record_stale = true;
     }
   }
 
@@ -649,7 +654,7 @@ struct StfHandler
   void record_machine_state(processor_t *p) {
 
     auto const state = p->get_state();
-    stf_writer << stf::ForcePCRecord(state->pc);
+    _pc_record_stale = true;
 
     //TODO once dromajo comparison is done this if statement should
     //be removed, when 
@@ -998,6 +1003,7 @@ private:
   uint64_t _traced_instructions_region{0};
   uint64_t _traced_instructions_running{0};
   uint64_t _traced_warmup_insns{0};
+  bool _pc_record_stale{false};
 
   static constexpr uint32_t _START_TRACE = 0x00004033; //xor x0,x0,x0
   static constexpr uint32_t _STOP_TRACE  = 0x0010c033; //xor x0,x1,x1
