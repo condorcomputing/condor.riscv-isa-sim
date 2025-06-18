@@ -502,7 +502,7 @@ int main(int argc, char** argv)
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
-  if (!*argv1 || !stfhandler->option_checks(cfg)) {
+  if (!*argv1 || !stfhandler->option_checks(cfg, bb_tracer_options::en_bbv)) {
     help();
   }
 
@@ -620,6 +620,7 @@ int main(int argc, char** argv)
     stfhandler->close_trace();
   }
 
+  // FIXME
   if (stfhandler->trace_file_name != "" || bb_tracer_options::en_bbv) {
     stfhandler->report_stats(s,cfg,exe_start);
   }
