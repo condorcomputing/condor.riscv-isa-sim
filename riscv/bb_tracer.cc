@@ -102,16 +102,16 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val) noexcept {
             std::cerr << "simpoint terminate\n";
         m_benchmark_return_code = val >> 2;
         m_terminate = true;
-        } else if ((val & 1) == 1 && m_simpoint_roi) {
+        } else if ((val & 3) == 1 && m_simpoint_roi) {
             std::cerr << "simpoint ROI already started\n";
-        } else if ((val & 1) == 0 && m_simpoint_roi) {
+        } else if ((val & 3) == 0 && m_simpoint_roi) {
             std::cerr << "simpoint ROI finished\n";
             m_ninst++;
             capture_basic_block(0);
             flush_bb_vector(1u);
             m_simpoint_roi = false;
             m_last_pc = 0;
-        } else if ((val & 1) == 0 && m_simpoint_roi) {
+        } else if ((val & 3) == 0 && !m_simpoint_roi) {
             std::cerr << "simpoint ROI already finished\n";
         } else {
             std::cerr << "simpoint ROI started\n";
