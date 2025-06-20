@@ -818,6 +818,7 @@ struct StfTracer
 
     insn_num_tracing = true;
     executed_instructions = 0;
+    executed_umode_instructions = 0;
 
     auto  _xlen = proc->get_xlen();
     reg_t _satp = proc->get_state()->satp->read();
@@ -859,6 +860,7 @@ public:
 
   bool trace_file_open{false};
   uint64_t executed_instructions{0};
+  uint64_t executed_umode_instructions{0};
   uint64_t last_npc{0};
   uint32_t insn_bytes{0};
   bool     is_taken_branch{false};
