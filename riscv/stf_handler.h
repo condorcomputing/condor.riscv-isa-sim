@@ -165,9 +165,13 @@ struct StfHandler
     }
     return _is_start;
   }
-  void incr_executed_instructions() {
+  void incr_executed_instructions(state_t* state) {
     for (auto tracer : tracers) {
       ++tracer->executed_instructions;
+
+      if ((state->prv_changed ? state->prev_prv : state->prv) == 0) {
+        ++tracer->executed_umode_instructions;
+      }
     }
   }
   // ----------------------------------------------------------------
@@ -455,7 +459,6 @@ public:
   //This is set when start macro has been detected
 
   bool trace_file_open{false};
-  uint64_t executed_instructions{0};
   uint64_t last_npc{0};
   uint32_t insn_bytes{0};
   bool     is_taken_branch{false};

@@ -304,7 +304,7 @@ void processor_t::step(size_t n)
             disasm(fetch.insn);
           pc = execute_insn_logged(this, &state, pc, fetch);
           if (pc != PC_SERIALIZE_BEFORE) {
-            stfhandler->incr_executed_instructions();
+            stfhandler->incr_executed_instructions(&state);
           }
           advance_pc();
 
@@ -339,21 +339,21 @@ void processor_t::step(size_t n)
 
           ic_entry = ic_entry->next;
           auto new_pc = execute_insn_fast(this, pc, fetch);
-          stfhandler->incr_executed_instructions();
+          stfhandler->incr_executed_instructions(&state);
           if (unlikely(ic_entry->tag != new_pc)) {
             ic_entry = &_mmu->icache[_mmu->icache_index(new_pc)];
             _mmu->icache[_mmu->icache_index(pc)].next = ic_entry;
             if (ic_entry->tag != new_pc) {
               pc = new_pc;
               if (pc != PC_SERIALIZE_BEFORE) {
-                stfhandler->incr_executed_instructions();
+                stfhandler->incr_executed_instructions(&state);
 	           }
               advance_pc();
               break;
             }
           }
           state.pc = pc = ic_entry->tag;
-          stfhandler->incr_executed_instructions();
+          stfhandler->incr_executed_instructions(&state);
         }
 
         if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
@@ -410,7 +410,7 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
-      stfhandler->incr_executed_instructions();
+      stfhandler->incr_executed_instructions(&state);
       in_wfi = true;
     }
     catch(stf_trace_complete &e) {
