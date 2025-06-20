@@ -163,7 +163,7 @@ inline void processor_t::update_histogram(reg_t pc)
 static inline reg_t execute_insn_fast(processor_t* p, reg_t pc, insn_fetch_t fetch) {
   return fetch.func(p, fetch.insn, pc);
 }
-static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t fetch)
+static inline reg_t execute_insn_logged(processor_t* p, state_t* state, reg_t pc, insn_fetch_t fetch)
 {
   if (p->get_log_commits_enabled() || stfhandler->stf_enable_log_commits()) {
     commit_log_reset(p);
@@ -185,7 +185,10 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
       }
 
       stfhandler->trace_insn(p,fetch,pc,npc,"SLOW LOOP");
-      p->get_bb_tracer().simpoint_step(1u, pc);
+      if ((state->prv_changed ? state->prev_prv : state->prv) == 0 || !bb_tracer_options::bbv_umode_only) {
+        p->get_bb_tracer().simpoint_step(1u, pc);
+      }
+
       if (p->get_log_commits_enabled()) {
         commit_log_print_insn(p, pc, fetch.insn);
       }
@@ -308,7 +311,7 @@ void processor_t::step(size_t n)
           fetch = mmu->load_insn(pc);
           if (debug && !state.serialized)
             disasm(fetch.insn);
-          pc = execute_insn_logged(this, pc, fetch);
+          pc = execute_insn_logged(this, &state, pc, fetch);
           if (pc != PC_SERIALIZE_BEFORE) {
             stfhandler->incr_executed_instructions();
           }
