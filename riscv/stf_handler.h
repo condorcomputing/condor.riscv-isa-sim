@@ -493,6 +493,8 @@ struct StfHandler
               _fetch = (insn_fetch_t)0;
       }
       trace_insn(p, _fetch, pc, npc, debug);
+      --_traced_instructions_region;
+      --_traced_instructions_running;
     } else {
       _pc_record_stale = true;
     }
