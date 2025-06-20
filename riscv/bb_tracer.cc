@@ -140,12 +140,14 @@ namespace bb_tracer_options {
     bool en_bbv = false;
     std::string bb_file{"bbv.spike"};
     uint64_t simpoint_size = 100000000UL;
+    bool bbv_umode_only = false;
 
     void set_options(option_parser_t &parser) {
         parser.option(0, "en_bbv", 0, [&](const char UNUSED *s) { en_bbv = true; });
         parser.option(0, "bb_file", 1,
                       [&](const char *s) { bb_tracer_options::bb_file = std::string(s); });
         parser.option(0, "simpoint_size", 1, [&](const char *s) { simpoint_size = strtoul(s, nullptr, 10); });
+        parser.option(0, "bbv_umode_only", 0, [&](const UNUSED char *s) { bbv_umode_only = true; });
     }
 
     void bbv_options_help() {
@@ -157,6 +159,7 @@ namespace bb_tracer_options {
         E("  --bb_file=<path>      Base name of the file to dump. Name is appended with\n");
         E("                        _cpu<n> suffix depending on the core BB collection is\n");
         E("                        happening [default bbv.spike]\n");
+        E("  --bbv_umode_only      SimPoint only user-mode instructions [default false]\n");
         E("  --simpoint_size=<n>   SimPoint window for BB collection [default 100,000,000]\n");
         #undef E
     }

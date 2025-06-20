@@ -90,6 +90,7 @@ namespace bb_tracer_options {
     extern bool en_bbv;
     extern std::string bb_file;
     extern uint64_t simpoint_size;
+    extern bool bbv_umode_only;
 
     void set_options(option_parser_t &parser);
 
