@@ -334,7 +334,6 @@ void processor_t::step(size_t n)
             break; //exit the for(;;) before insn is executed
           }
           pc = execute_insn_fast(this, pc, fetch);
-          ++stfhandler->executed_instructions;
           ic_entry = ic_entry->next;
           if (unlikely(ic_entry->tag != pc))
             break;
@@ -342,8 +341,18 @@ void processor_t::step(size_t n)
             break;
           instret++;
           state.pc = pc;
+          ++stfhandler->executed_instructions;
+          if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
+            break;
+          }
         }
 
+        if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
+          break; //exit while
+        }
+        if (pc != PC_SERIALIZE_BEFORE) {
+          ++stfhandler->executed_instructions;
+	}
         advance_pc();
         if(unlikely(stfhandler->in_traceable_region())) {
           break; //exit while
@@ -400,7 +409,15 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
+      ++stfhandler->executed_instructions;
       in_wfi = true;
+    }
+    catch(stf_trace_complete &e) {
+      if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_IR))
+        state.minstret->bump(instret);
+      if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_CY))
+        state.mcycle->bump(instret);
+      throw;
     }
 
     if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_IR))
