@@ -241,82 +241,77 @@ struct StfHandler
   void set_options(option_parser_t &parser)
   {
     parser.option(0,"stf_trace", 1, [&](const char* s) {
-      if (tracer_cfg_started) {
+      if (!stf_trace_opts_ooo && tracer_cfg_started) {
          create_tracer();
          reset_default_opts();
+      } else if (stf_trace_opts_ooo && trace_file_name != "") {
+         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
+         exit(1);
       }
+
       trace_file_name = s;
       tracer_cfg_started = true;
     });
 
     parser.option(0,"stf_exit_on_stop_opc", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       exit_on_stop_opc = true;
     });
 
     parser.option(0,"stf_trace_register_state", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       _trace_register_state = true;
     });
 
     parser.option(0,"stf_trace_memory_records", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       _trace_memory_records = true;
     });
 
     parser.option(0,"stf_priv_modes", 1, [&](const char* s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       priv_modes = s;
     });
 
     parser.option(0,"stf_force_zero_sha", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       force_zero_sha = true;
     });
 
     parser.option(0,"stf_macro_tracing", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       macro_tracing = true;
     });
 
     parser.option(0,"stf_insn_num_tracing", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       insn_num_tracing = true;
     });
 
     parser.option(0,"stf_insn_start", 1, [&](const char* s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       insn_start = strtoull(s, nullptr, 0);
     });
 
     parser.option(0,"stf_insn_count", 1, [&](const char* s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       insn_count = strtoull(s, nullptr, 0);
     });
@@ -331,32 +326,28 @@ struct StfHandler
 
     parser.option(0,"stf_warmup_size", 1, [&](const char* s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       warmup_size = strtoull(s, nullptr, 0);
     });
 
     parser.option(0,"stf_include_macros", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       include_trace_macros = true;
     });
 
     parser.option(0,"stf_verbose", 0, [&](const char UNUSED *s){
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       stf_verbose = true;
     });
 
     parser.option(0,"stf_stats", 1, [&](const char* s) {
       if (!tracer_cfg_started) {
-         std::cerr << "-E --stf_trace must be specified before trace options" << std::endl;
-         exit(1);
+        stf_trace_opts_ooo = true;
       }
       stats_file_name = s;
     });
@@ -368,7 +359,7 @@ struct StfHandler
   bool option_checks(cfg_t &cfg, bool bbv_en) {
 
     // if bbv is enabled, create at least one tracer instance for stat generation.
-    if (tracer_cfg_started || (bbv_en && tracers.size()==0)) {
+    if (tracer_cfg_started || stf_trace_opts_ooo || (bbv_en && tracers.size()==0)) {
       create_tracer();
       tracer_cfg_started = false;
     }
@@ -479,6 +470,7 @@ private:
   StfHandler& operator=(const StfHandler&) = delete; //assignment
   std::vector<StfTracer*> tracers;
   bool tracer_cfg_started{false};
+  bool stf_trace_opts_ooo{false};
 
 };
 
