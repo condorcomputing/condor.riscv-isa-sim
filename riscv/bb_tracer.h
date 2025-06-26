@@ -96,6 +96,7 @@ private:
     uint64_t m_insn_num_roi_started{0};
     instr_track_t snippet_start_insn_track;
     instr_track_t snippet_end_insn_track;
+    reg_t m_ppn{0};
 };
 
 namespace bb_tracer_options {
