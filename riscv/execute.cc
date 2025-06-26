@@ -333,7 +333,7 @@ void processor_t::step(size_t n)
           fetch = ic_entry->data;
           //If this is the start macro we exit this loop and process 
           //in the slow loop
-          if(unlikely(stfhandler->is_start_of_region(fetch.insn.bits()))) {
+          if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->is_start_of_region(fetch.insn.bits()))) {
             break; //exit the for(;;) before insn is executed
           }
 
@@ -356,11 +356,12 @@ void processor_t::step(size_t n)
           stfhandler->incr_executed_instructions(&state);
         }
 
-        if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
-          break; //exit while
-        }
         if(unlikely(stfhandler->in_traceable_region())) {
           break; //exit while
+        }
+
+        if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->is_start_of_region(0))) {
+          break;
         }
       }
     }
