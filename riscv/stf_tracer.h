@@ -188,28 +188,27 @@ struct StfTracer
     _pending_region = false; 
 
     if(macro_tracing) trace_macro_insn(p,fetch,debug);
-    else              trace_count_insn(p,fetch,debug);
+    else              trace_count_insn(p,fetch,pc,debug);
   }
 
   // ---------------------------------------------------------------- 
   // If this is called then macro_tracing == false
   // ---------------------------------------------------------------- 
   void trace_count_insn(processor_t *proc,insn_fetch_t &fetch,
-                        std::string debug="")
+                        reg_t pc,std::string debug="")
   {
     auto const state = proc->get_state();
-    auto const PC = state->pc;
 
     bool stop_a =  is_stop_macro(fetch.insn.bits()) && exit_on_stop_opc;
     bool stop_b =  insn_count == UINT64_MAX ? false : executed_instructions == insn_start+insn_count;
 
 
     if(unlikely(stop_a)) {
-      info(proc,"trace stop  opc detected 0x%lx\n",PC);
+      info(proc,"trace stop  opc detected 0x%lx\n",pc);
     } 
 
     if(unlikely(stop_b)) {
-      info(proc,"tracing stop insn count reached at PC:0x%lx\n",PC);
+      info(proc,"tracing stop insn count reached at PC:0x%lx\n",pc);
     }
 
     if(unlikely(stop_a || stop_b)) {
@@ -227,7 +226,7 @@ struct StfTracer
 
     //First time reaching this insn count
     if(executed_instructions == insn_start) {
-      info(proc,"trace start insn count reached PC:0x%lx\n",PC);
+      info(proc,"trace start insn count reached PC:0x%lx\n",pc);
 
       _in_trace_region = true;
 
@@ -240,7 +239,7 @@ struct StfTracer
       }
 
       if((bool)stf_writer == false)  {
-        open_trace(proc,fetch);
+        open_trace(proc,fetch,pc);
       }
 
       record_machine_state(proc);
@@ -253,7 +252,7 @@ struct StfTracer
       }
 
 
-      trace_element(proc,fetch,debug);
+      trace_element(proc,fetch,pc,debug);
     }
   }
   // ---------------------------------------------------------------- 
@@ -272,7 +271,7 @@ struct StfTracer
 
       //Optionally include the trace macros from the trace
       if (include_trace_macros && _in_trace_region) {
-        trace_element(proc,fetch,debug);
+        trace_element(proc,fetch,PC,debug);
       }
 
       report_stats(proc,debug);
@@ -307,7 +306,7 @@ struct StfTracer
       _in_trace_region = true;
 
       if((bool)stf_writer == false)  {
-        open_trace(proc,fetch);
+        open_trace(proc,fetch,PC);
       }
 
       record_machine_state(proc);
@@ -319,20 +318,20 @@ struct StfTracer
       }
     }
 
-    if (_in_trace_region) trace_element(proc,fetch,debug);
+    if (_in_trace_region) trace_element(proc,fetch,PC,debug);
   }
 
   // ---------------------------------------------------------------- 
   // ---------------------------------------------------------------- 
   void trace_element(processor_t *proc,insn_fetch_t &fetch,
-                     std::string debug="") 
+                     reg_t pc,std::string debug="")
   {
     auto const state = proc->get_state();
-    auto const PC = state->pc;
+
     //The open_trace is deferred until now to align with behavior
     //of Dromajo which produces known good trace files.
     if((bool)stf_writer == false)  {
-      open_trace(proc,fetch);
+      open_trace(proc,fetch,pc);
     }
 
     //Trace this instruction if it has the right PRIV level and PPN
@@ -354,7 +353,7 @@ struct StfTracer
         bool skip_record = false;
 
         if(_pc_record_stale) {
-          force_pc_record(PC);
+          force_pc_record(pc);
           _pc_record_stale = false;
         }
 
@@ -668,7 +667,7 @@ struct StfTracer
 
   // ----------------------------------------------------------------
   // ----------------------------------------------------------------
-  void open_trace(processor_t *proc,insn_fetch_t &fetch) {
+  void open_trace(processor_t *proc,insn_fetch_t &fetch,reg_t pc) {
 
     stf_writer.open(trace_file_name);
 
@@ -714,7 +713,7 @@ struct StfTracer
       stf::TRACE_FEATURES::STF_CONTAIN_PHYSICAL_ADDRESS
     );
 
-    stf_writer.setHeaderPC(proc->get_state()->pc);
+    stf_writer.setHeaderPC(pc);
     stf_writer.finalizeHeader();
   }
 
