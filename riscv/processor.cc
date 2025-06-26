@@ -45,7 +45,8 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
   log_file(log_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
   in_wfi(false), check_triggers_icount(false),
   impl_table(256, false),
-  m_bb_tracer(bb_tracer_options::en_bbv,
+  m_bb_tracer(this,
+              bb_tracer_options::en_bbv,
               bb_tracer_options::bb_file,
               bb_tracer_options::simpoint_size,
               id),
@@ -847,4 +848,18 @@ bool processor_t::get_log_or_stf_commits_enabled() const {
 
 void processor_t::simpoint_csr_write_notify(const reg_t value) {
   stfhandler->simpoint_csr_write_notify(this, value);
+}
+
+std::shared_ptr<StfHandler> processor_t::get_stf_handler() {
+  return stfhandler;
+}
+
+// FIXME remove this once stfhandler.h is refactored
+uint64_t processor_t::get_executed_insns() {
+  return stfhandler->get_executed_insns();
+}
+
+// FIXME remove this once stfhandler.h is refactored
+uint64_t processor_t::get_executed_umode_insns() {
+  return stfhandler->get_executed_umode_insns();
 }

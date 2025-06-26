@@ -30,6 +30,7 @@ class trap_t;
 class extension_t;
 class disassembler_t;
 class bb_tracer;
+struct StfHandler;
 
 reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
 
@@ -395,6 +396,9 @@ public:
   bb_tracer& get_bb_tracer() {return m_bb_tracer;}
 
   void simpoint_csr_write_notify(const reg_t value);
+  std::shared_ptr<StfHandler> get_stf_handler();
+  uint64_t get_executed_insns();
+  uint64_t get_executed_umode_insns();
 
 private:
   const isa_parser_t isa;
