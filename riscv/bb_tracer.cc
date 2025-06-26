@@ -21,8 +21,9 @@ namespace bb_ctrl {
     }
 } // namespace bb_ctrl
 
-bb_tracer::bb_tracer(bool en_bbv, const std::string &bb_file_base_name,
-                     uint64_t simpoint_size, uint32_t heart_id) : m_simpoint_size(simpoint_size),
+bb_tracer::bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_base_name,
+                     uint64_t simpoint_size, uint32_t heart_id) : m_proc(proc),
+                                                                  m_simpoint_size(simpoint_size),
                                                                   m_next_id(1),
                                                                   m_next_bbv_dump(simpoint_size),
                                                                   m_heart_id(heart_id),
@@ -37,12 +38,23 @@ bb_tracer::bb_tracer(bool en_bbv, const std::string &bb_file_base_name,
                       << "\n";
             m_en_bbv = false;
         }
+
+        auto bb_tracks_file_name = bb_file_base_name + '_' + std::to_string(m_heart_id) + "_tracks.log" ;
+        m_bb_tracks_file.open(bb_tracks_file_name, std::ios::out);
+        if (m_bb_tracks_file.is_open()) {
+            std::cout << "Opened file: " << bb_tracks_file_name << " to log BBV snippet tracks for CPU: " << m_heart_id << "\n";
+        } else {
+            std::cout << "Failed to open " << bb_tracks_file_name << " file! Disabling BB capture for CPU: " << m_heart_id
+                      << "\n";
+            m_en_bbv = false;
+        }
     }
 }
 
 
 bb_tracer::~bb_tracer() {
     m_bb_file.close();
+    m_bb_tracks_file.close();
 }
 
 void bb_tracer::flush_bb_vector(const uint64_t steps) {
@@ -73,10 +85,41 @@ void bb_tracer::flush_bb_vector(const uint64_t steps) {
 }
 
 int bb_tracer::capture_basic_block(const uint64_t pc) {
+
     if ((m_last_pc + 2) != pc && (m_last_pc + 4) != pc) {
         m_bbv[m_last_pc] += m_ninst;
         m_ninst = 0;
     }
+
+    // Log info on first/last instruction in each snippet
+    if (m_total_insn_in_roi == m_next_bbv_dump) {
+        // Last instruction in snippet
+        snippet_end_insn_track.total_instr_count = m_proc->get_executed_insns();
+        snippet_end_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        snippet_end_insn_track.roi_instr_count = m_total_insn_in_roi;
+        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
+        snippet_end_insn_track.pc = pc;
+
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.roi_instr_count << " ";
+        m_bb_tracks_file << std::hex << snippet_start_insn_track.pc << " ";
+
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_umode_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.roi_instr_count << " ";
+        m_bb_tracks_file << std::hex << snippet_end_insn_track.pc << std::endl;
+
+        m_bb_tracks_file.flush();
+    } else if (m_total_insn_in_roi - 1 == m_next_bbv_dump - m_simpoint_size) {
+        // First instruction in snippet
+        snippet_start_insn_track.total_instr_count = m_proc->get_executed_insns();
+        snippet_start_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        snippet_start_insn_track.roi_instr_count = m_total_insn_in_roi;
+        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
+        snippet_start_insn_track.pc = pc;
+    }
+
     return 1; // Compatibility with original
 }
 
@@ -111,8 +154,8 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
     {
         if ((val & 3) == 2) {
             std::cerr << "simpoint terminate\n";
-        m_benchmark_return_code = val >> 2;
-        m_terminate = true;
+            m_benchmark_return_code = val >> 2;
+            m_terminate = true;
         } else if ((val & 3) == 1 && m_simpoint_roi) {
             std::cerr << "simpoint ROI already started\n";
         } else if ((val & 3) == 0 && m_simpoint_roi) {

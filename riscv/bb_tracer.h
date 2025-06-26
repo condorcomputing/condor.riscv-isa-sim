@@ -35,9 +35,17 @@ namespace bb_ctrl {
     };
 }// namespace bb_ctrl
 
+struct instr_track_t{
+    uint64_t total_instr_count{0};
+    uint64_t total_umode_instr_count{0};
+    uint64_t roi_instr_count{0};
+    uint64_t roi_umode_instr_count{0};
+    reg_t pc;
+};
+
 class bb_tracer {
 public:
-    bb_tracer(bool en_bbv, const std::string &bb_file_base_name, uint64_t simpoint_size, uint32_t heart_id);
+    bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_base_name, uint64_t simpoint_size, uint32_t heart_id);
 
     ~bb_tracer();
 
@@ -67,8 +75,10 @@ private:
 
     std::vector<Simpoint> simpoints;
 
+    processor_t* m_proc;
     uint64_t m_simpoint_size{0};
     std::fstream m_bb_file;
+    std::fstream m_bb_tracks_file;
     std::fstream m_simpoint_file;
     std::unordered_map<uint64_t, uint64_t> m_bbv;
     std::unordered_map<uint64_t, uint64_t> m_pc2id;
@@ -82,8 +92,10 @@ private:
     uint64_t m_benchmark_return_code{0};
     uint64_t m_last_pc{0};
     uint64_t m_simpoint_en_pc{0};
-    long int m_total_insn_in_roi{0};
+    uint64_t m_total_insn_in_roi{0};
     uint64_t m_insn_num_roi_started{0};
+    instr_track_t snippet_start_insn_track;
+    instr_track_t snippet_end_insn_track;
 };
 
 namespace bb_tracer_options {
