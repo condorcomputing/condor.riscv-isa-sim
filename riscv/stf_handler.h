@@ -174,6 +174,16 @@ struct StfHandler
       }
     }
   }
+  uint64_t get_executed_insns() {
+    if (tracers.size() == 0) return 0;
+
+    return tracers[0]->executed_instructions;
+  }
+  uint64_t get_executed_umode_insns() {
+    if (tracers.size() == 0) return 0;
+
+    return tracers[0]->executed_umode_instructions;
+  }
   // ----------------------------------------------------------------
   // option support methods
   // ----------------------------------------------------------------
