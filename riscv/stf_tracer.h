@@ -338,6 +338,7 @@ struct StfTracer
     bool priv_in_range = is_priv_mode_traceable(state->last_inst_priv, state->prev_v, priv_modes);
     bool pending_exception = false; //TODO find this in spike
 
+    // TODO ppn can be saved & read only after CSR instructions
     auto  _xlen = proc->get_xlen();
     reg_t _satp = state->satp->read();
     reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);

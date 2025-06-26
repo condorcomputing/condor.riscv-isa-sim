@@ -124,6 +124,16 @@ int bb_tracer::capture_basic_block(const uint64_t pc) {
 }
 
 void bb_tracer::simpoint_step(uint64_t steps, uint64_t pc) {
+    if (bb_tracer_options::bbv_umode_only) {
+        // TODO ppn can be saved & read only after CSR instructions
+        auto  _xlen = m_proc->get_xlen();
+        reg_t _satp = m_proc->get_state()->satp->read();
+        reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);
+
+        if (_ppn != m_ppn) {
+            return;
+        }
+    }
     if (m_last_pc && m_simpoint_roi) {
         m_total_insn_in_roi++;
         m_ninst++;
@@ -173,6 +183,10 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
             m_simpoint_en_pc = pc;
             m_total_insn_in_roi = 0;
             m_insn_num_roi_started = executed_insn_cnt;
+
+            auto  _xlen = m_proc->get_xlen();
+            reg_t _satp = m_proc->get_state()->satp->read();
+            m_ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
         }
         std::cerr.flush();
     }
