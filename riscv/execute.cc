@@ -354,19 +354,19 @@ void processor_t::step(size_t n)
           instret++;
           state.pc = pc;
           stfhandler->incr_executed_instructions(&state);
-          if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
-            break;
-          }
         }
 
-        if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->in_traceable_region())) {
+        // Detect if we entered the trace region before executing current "pc":
+        if(unlikely(stfhandler->in_traceable_region())) {
           break; //exit while
         }
         if (pc != PC_SERIALIZE_BEFORE) {
+          // "pc" was executed, so increment count
           stfhandler->incr_executed_instructions(&state);
         }
         advance_pc();
-        if(unlikely(stfhandler->in_traceable_region())) {
+        // Detect if the new PC in in the trace region (note this one calls "is_start_of_region()?")
+        if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->is_start_of_region(0))) {
           break; //exit while
         }
       }
