@@ -173,6 +173,10 @@ uint64_t bb_tracer::get_insn_count_on_roi_start() const {
   return m_insn_num_roi_started;
 }
 
+uint64_t bb_tracer::get_benchmark_ppn() const {
+  return m_ppn;
+}
+
 void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64_t executed_insn_cnt) noexcept {
     if(m_en_bbv)
     {

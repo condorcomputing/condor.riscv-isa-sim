@@ -59,6 +59,8 @@ public:
 
     uint64_t get_insn_count_on_roi_start() const;
 
+    uint64_t get_benchmark_ppn() const;
+
 private:
     int capture_basic_block(uint64_t pc);
 

@@ -96,6 +96,7 @@ struct StfTracer
   {
     std::vector<long int> bbv_insns_per_core;
     std::vector<uint64_t> bbv_insn_roi_start_per_core;
+    std::vector<uint64_t> bbv_benchmark_ppn_per_core;
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start).count();
     double duration_ms = static_cast<double>(duration);
@@ -111,6 +112,19 @@ struct StfTracer
       mips = ((instret_count / duration_ms ) * (1000.)) / 1000000.;
     }
 
+    for(size_t idx=0;idx<cfg.nprocs();++idx) {
+      auto bbv_num_insns = s.get_core(idx)->get_bb_tracer().get_total_insns();
+      bbv_insns_per_core.push_back(bbv_num_insns);
+    }
+    for(size_t idx=0;idx<cfg.nprocs();++idx) {
+      auto bbv_insn_count_roi_start = s.get_core(idx)->get_bb_tracer().get_insn_count_on_roi_start();
+      bbv_insn_roi_start_per_core.push_back(bbv_insn_count_roi_start);
+    }
+    for(size_t idx=0;idx<cfg.nprocs();++idx) {
+      auto bbv_benchmark_ppn = s.get_core(idx)->get_bb_tracer().get_benchmark_ppn();
+      bbv_benchmark_ppn_per_core.push_back(bbv_benchmark_ppn);
+    }
+
     if(!s.in_quiet_mode()) {
       fprintf(stderr,"-I: Totals: \n");
       fprintf(stderr,"-I:   traced instructions         %ld\n",
@@ -121,22 +135,20 @@ struct StfTracer
       fprintf(stderr,"-I:   duration ms                 %.2f\n", duration_ms);
       fprintf(stderr,"-I:   wall-clock MIPs             %.2f\n", mips);
 
-      for(size_t idx=0;idx<cfg.nprocs();++idx) {
-        auto bbv_num_insns = s.get_core(idx)->get_bb_tracer().get_total_insns();
+      for(size_t idx=0;idx<bbv_insns_per_core.size();++idx) {
+        auto bbv_num_insns = bbv_insns_per_core[idx];
         fprintf(stderr,"-I:   BBV instructions, core %ld    %ld\n", idx, bbv_num_insns);
-        bbv_insns_per_core.push_back(bbv_num_insns);
       }
-      for(size_t idx=0;idx<cfg.nprocs();++idx) {
-        auto bbv_insn_count_roi_start = s.get_core(idx)->get_bb_tracer().get_insn_count_on_roi_start();
+      for(size_t idx=0;idx<bbv_insn_roi_start_per_core.size();idx++) {
+        auto bbv_insn_count_roi_start = bbv_benchmark_ppn_per_core[idx];
         fprintf(stderr,"-I:   BBV ROI start insn, core %ld  %ld\n", idx, bbv_insn_count_roi_start);
-        bbv_insn_roi_start_per_core.push_back(bbv_insn_count_roi_start);
       }
     }
 
     write_json_stats(_traced_instructions_running,
                      executed_instructions, instret_count,
                      duration_ms, mips, bbv_insns_per_core, bbv_insn_roi_start_per_core,
-                     _traced_warmup_insns);
+                     bbv_benchmark_ppn_per_core, _traced_warmup_insns);
   }
   // ---------------------------------------------------------------- 
   // Getters
@@ -511,6 +523,7 @@ struct StfTracer
                         double   mips,
                         std::vector<long int> num_bbv_insns,
                         std::vector<uint64_t> roi_start_insn_cnt,
+                        std::vector<uint64_t> benchmark_ppn,
                         uint64_t warmup_region_insns)
   {
     std::ofstream jout(stats_file_name.c_str());
@@ -546,6 +559,11 @@ struct StfTracer
     for (size_t i=0; i<roi_start_insn_cnt.size(); i++) {
         jout<<"    \"cpu" << std::dec << i << "_bbv_roi_started\" : "
             << roi_start_insn_cnt[i] <<","<<std::endl;
+    }
+
+    for (size_t i=0; i<benchmark_ppn.size(); i++) {
+        jout<<"    \"cpu" << std::dec << i << "_benchmark_ppn\" : "
+            << benchmark_ppn[i] <<","<<std::endl;
     }
 
     jout<<"    \"warmup_region_instructions\" : "
