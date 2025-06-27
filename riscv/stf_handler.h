@@ -85,7 +85,7 @@ struct StfHandler
                   reg_t pc, reg_t npc, std::string debug="")
   {
     for (auto tracer : tracers) {
-      if (tracer->in_traceable_region()) {
+      if (tracer->in_traceable_region() || tracer->is_start_of_region(fetch.insn.bits())) {
         try {
           tracer->trace_insn(p, fetch, pc, npc, debug);
         }
