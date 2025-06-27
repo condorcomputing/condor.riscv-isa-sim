@@ -464,11 +464,15 @@ struct StfTracer
       }
       trace_insn(p, _fetch, pc, npc, debug);
 
-      // Unfortunately it's hard to know if this event traced an instruction or not
-      // Just reproducing the filter logic from trace_element here
+      // Generally, don't count events toward total instructions executed, even if they're traced.
+      // Unfortunately it's hard to know if an event traced an instruction or not
+      // Just reproducing the filter logic from `trace_element` here
       if (ppn_match && is_priv_mode_traceable(state->last_inst_priv, state->prev_v, priv_modes)){
-        --_traced_instructions_region;
-        --_traced_instructions_running;
+        // Always trace (and count) usermode ecall
+        if (t.cause() != CAUSE_USER_ECALL) {
+          --_traced_instructions_region;
+          --_traced_instructions_running;
+        }
       }
     } else {
       _pc_record_stale = true;
