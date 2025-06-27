@@ -471,8 +471,13 @@ struct StfTracer
               _fetch = (insn_fetch_t)0;
       }
       trace_insn(p, _fetch, pc, npc, debug);
-      --_traced_instructions_region;
-      --_traced_instructions_running;
+
+      // Unfortunately it's hard to know if this event traced an instruction or not
+      // Just reproducing the filter logic from trace_element here
+      if (ppn_match && is_priv_mode_traceable(state->last_inst_priv, state->prev_v, priv_modes)){
+        --_traced_instructions_region;
+        --_traced_instructions_running;
+      }
     } else {
       _pc_record_stale = true;
     }
