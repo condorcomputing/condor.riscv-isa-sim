@@ -379,6 +379,11 @@ void processor_t::step(size_t n)
         stfhandler->trace_event(this,fetch,pc,get_state()->pc,t,"TRAP");
       }
 
+      if (m_bb_tracer.in_region_of_interest() && t.cause() == CAUSE_USER_ECALL && bb_tracer_options::bbv_umode_only) {
+         // BBV trace usermode ecalls to keep instruction counts consistent with STF trace
+         m_bb_tracer.simpoint_step(1u, pc);
+      }
+
       n = instret;
 
       // If critical error then enter debug mode critical error trigger enabled
