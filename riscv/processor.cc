@@ -48,7 +48,7 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
               bb_tracer_options::en_bbv,
               bb_tracer_options::bb_file,
               bb_tracer_options::simpoint_size,
-              id),
+              bb_tracer_options::warmup_size, id),
   extension_enable_table(isa.get_extension_table()),
   last_pc(1), executions(1), TM(cfg->trigger_count)
 {

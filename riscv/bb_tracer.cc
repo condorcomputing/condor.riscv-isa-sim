@@ -22,12 +22,13 @@ namespace bb_ctrl {
 } // namespace bb_ctrl
 
 bb_tracer::bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_base_name,
-                     uint64_t simpoint_size, uint32_t heart_id) : m_proc(proc),
+                     uint64_t simpoint_size, uint64_t warmup_size, uint32_t heart_id) : m_proc(proc),
                                                                   m_simpoint_size(simpoint_size),
                                                                   m_next_id(1),
                                                                   m_next_bbv_dump(simpoint_size),
                                                                   m_heart_id(heart_id),
-                                                                  m_en_bbv(en_bbv) {
+                                                                  m_en_bbv(en_bbv),
+                                                                  m_warmup_size(warmup_size) {
     if (m_en_bbv) {
         auto bb_file_name = bb_file_base_name + "_cpu" + std::to_string(m_heart_id);
         m_bb_file.open(bb_file_name, std::ios::out);
@@ -100,6 +101,13 @@ int bb_tracer::capture_basic_block(const uint64_t pc) {
         //snippet_end_insn_track.roi_umode_instr_count =   // TODO
         snippet_end_insn_track.pc = pc;
 
+        if (m_warmup_size) {
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_instr_count << " ";
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_umode_instr_count << " ";
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.roi_instr_count << " ";
+            m_bb_tracks_file << std::hex << snippet_warmup_insn_track.pc << " ";
+        }
+
         m_bb_tracks_file << std::dec << snippet_start_insn_track.total_instr_count << " ";
         m_bb_tracks_file << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
         m_bb_tracks_file << std::dec << snippet_start_insn_track.roi_instr_count << " ";
@@ -118,6 +126,12 @@ int bb_tracer::capture_basic_block(const uint64_t pc) {
         snippet_start_insn_track.roi_instr_count = m_total_insn_in_roi;
         //snippet_end_insn_track.roi_umode_instr_count =   // TODO
         snippet_start_insn_track.pc = pc;
+    } else if (m_total_insn_in_roi - 1 == m_next_bbv_dump - m_warmup_size) {
+        snippet_warmup_insn_track = next_snippet_warmup_insn_track;
+        next_snippet_warmup_insn_track.total_instr_count = m_proc->get_executed_insns();
+        next_snippet_warmup_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        next_snippet_warmup_insn_track.roi_instr_count = m_total_insn_in_roi;
+        next_snippet_warmup_insn_track.pc = pc;
     }
 
     return 1; // Compatibility with original
@@ -198,6 +212,7 @@ namespace bb_tracer_options {
     std::string bb_file{"bbv.spike"};
     uint64_t simpoint_size = 100000000UL;
     bool bbv_umode_only = false;
+    uint64_t warmup_size = 0;
 
     void set_options(option_parser_t &parser) {
         parser.option(0, "en_bbv", 0, [&](const char UNUSED *s) { en_bbv = true; });
@@ -205,6 +220,7 @@ namespace bb_tracer_options {
                       [&](const char *s) { bb_tracer_options::bb_file = std::string(s); });
         parser.option(0, "simpoint_size", 1, [&](const char *s) { simpoint_size = strtoul(s, nullptr, 10); });
         parser.option(0, "bbv_umode_only", 0, [&](const UNUSED char *s) { bbv_umode_only = true; });
+        parser.option(0, "warmup_size", 1, [&](const UNUSED char *s) { warmup_size = strtoul(s, nullptr, 10); });
     }
 
     void bbv_options_help() {
@@ -218,6 +234,7 @@ namespace bb_tracer_options {
         E("                        happening [default bbv.spike]\n");
         E("  --bbv_umode_only      SimPoint only user-mode instructions [default false]\n");
         E("  --simpoint_size=<n>   SimPoint window for BB collection [default 100,000,000]\n");
+        E("  --warmup_size=<n>     Warmup window for BB collection, use with bbv_umode_only.\n");
         #undef E
     }
 } // bb_tracer_options

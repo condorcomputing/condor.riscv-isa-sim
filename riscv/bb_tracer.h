@@ -40,12 +40,12 @@ struct instr_track_t{
     uint64_t total_umode_instr_count{0};
     uint64_t roi_instr_count{0};
     uint64_t roi_umode_instr_count{0};
-    reg_t pc;
+    reg_t pc{0};
 };
 
 class bb_tracer {
 public:
-    bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_base_name, uint64_t simpoint_size, uint32_t heart_id);
+    bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_base_name, uint64_t simpoint_size, uint64_t warmup_size, uint32_t heart_id);
 
     ~bb_tracer();
 
@@ -94,9 +94,12 @@ private:
     uint64_t m_simpoint_en_pc{0};
     uint64_t m_total_insn_in_roi{0};
     uint64_t m_insn_num_roi_started{0};
+    instr_track_t snippet_warmup_insn_track;
+    instr_track_t next_snippet_warmup_insn_track;
     instr_track_t snippet_start_insn_track;
     instr_track_t snippet_end_insn_track;
     reg_t m_ppn{0};
+    uint64_t m_warmup_size{0};
 };
 
 namespace bb_tracer_options {
@@ -104,6 +107,7 @@ namespace bb_tracer_options {
     extern std::string bb_file;
     extern uint64_t simpoint_size;
     extern bool bbv_umode_only;
+    extern uint64_t warmup_size;
 
     void set_options(option_parser_t &parser);
 
