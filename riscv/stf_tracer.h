@@ -246,8 +246,11 @@ struct StfTracer
       reg_t _satp = proc->get_state()->satp->read();
       reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
       int64_t _prog_ppn= (uint64_t) (_ppn & _PPN_MASK);
-      if (_prog_ppn != prog_ppn) {
-        std::cerr << "-E: First instruction of trace capture is NOT the trace workload process" << std::endl;
+
+      if (prog_ppn == -1) {
+        prog_ppn = _prog_ppn;
+      } else if (_prog_ppn != prog_ppn) {
+        std::cerr << "-W: First instruction of trace capture is NOT the trace workload process" << std::endl;
       }
 
       if(_trace_memory_records) {
@@ -312,11 +315,13 @@ struct StfTracer
       info(proc,"trace start opc detected 0x%lx\n",PC);
       report_stats(proc,debug);
 
-      auto  _xlen = proc->get_xlen();
-      reg_t _satp = proc->get_state()->satp->read();
-      reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
+      if (prog_ppn == -1) {
+        auto  _xlen = proc->get_xlen();
+        reg_t _satp = proc->get_state()->satp->read();
+        reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
 
-      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+        prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+      }
 
       //start macro is the beginning of the trace region
       _in_trace_region = true;
@@ -847,18 +852,18 @@ struct StfTracer
   }
 
   void simpoint_csr_write_notify(processor_t *const proc, const reg_t value) {
-    if (!count_from_bbv_roi) {
-      return;
+    if (count_from_bbv_roi) {
+      insn_num_tracing = true;
+      executed_instructions = 0;
+      executed_umode_instructions = 0;
     }
 
-    insn_num_tracing = true;
-    executed_instructions = 0;
-    executed_umode_instructions = 0;
-
-    auto  _xlen = proc->get_xlen();
-    reg_t _satp = proc->get_state()->satp->read();
-    reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
-    prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+    if (prog_ppn == -1) {
+      auto  _xlen = proc->get_xlen();
+      reg_t _satp = proc->get_state()->satp->read();
+      reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
+      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+    }
   }
 
 
@@ -926,6 +931,7 @@ public:
     bool _trace_register_state,
     bool _trace_memory_records,
     std::string priv_modes,
+    int64_t prog_ppn,
     bool force_zero_sha,
     bool macro_tracing,
     bool insn_num_tracing,
@@ -949,6 +955,7 @@ public:
     warmup_size(warmup_size),
     count_from_bbv_roi(count_from_bbv_roi),
     priv_modes(priv_modes),
+    prog_ppn(prog_ppn),
     _trace_memory_records(_trace_memory_records),
     _trace_register_state(_trace_register_state) {};
 };
