@@ -234,6 +234,9 @@ struct StfHandler
     E("                         Specify which privilege modes to include\n");
     E("                         in the trace. Accepts any combination of\n");
     E("                         M,H,S, and U (default USHM)\n");
+    E("  --stf_proc_ppn <int>   Only trace instructions when the\n");
+    E("                         satp->ppn (physical page number) matches.\n");
+    E("                         Used with \"--stf_priv_modes U\" to trace a single process.\n");
     E("  --stf_warmup_size <N>  Record the number of --stf_priv_modes instructions\n");
     E("                         in the first --stf_warmup_size total instructions.\n");
     E("  --stf_force_zero_sha   Emit 0 for all SHA's in the STF header.\n");
@@ -293,6 +296,13 @@ struct StfHandler
         stf_trace_opts_ooo = true;
       }
       priv_modes = s;
+    });
+
+    parser.option(0,"stf_proc_ppn", 1, [&](const char* s){
+      if (!tracer_cfg_started) {
+        stf_trace_opts_ooo = true;
+      }
+      prog_ppn = strtoull(s, nullptr, 0);
     });
 
     parser.option(0,"stf_force_zero_sha", 0, [&](const char UNUSED *s){
@@ -413,6 +423,7 @@ struct StfHandler
     count_from_bbv_roi = false;
 
     priv_modes = "USHM";
+    prog_ppn = -1;
   }
 
   void create_tracer() {
@@ -424,6 +435,7 @@ struct StfHandler
         _trace_register_state,
         _trace_memory_records,
         priv_modes,
+        prog_ppn,
         force_zero_sha,
         macro_tracing,
         insn_num_tracing,
