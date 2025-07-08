@@ -207,6 +207,8 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
             m_ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
         }
         std::cerr.flush();
+    } else if ((val & 3) == 1) {
+        m_insn_num_roi_started = executed_insn_cnt;
     }
 }
 
