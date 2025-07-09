@@ -424,6 +424,10 @@ struct StfTracer
   {
     auto const state = p->get_state();
 
+    commit_log_reg_t stash_log_reg_write;
+    commit_log_mem_t stash_log_mem_read;
+    commit_log_mem_t stash_log_mem_write;
+
     //tracing is not being used
     if(!macro_tracing && !insn_num_tracing) {
       LOG("-trace_insn "+debug+" NOTHING SELECTED");
@@ -453,22 +457,25 @@ struct StfTracer
 
     if(trace_this_event && stf_writer) {
       if (_in_trace_region) {
+         // If we are tracing events, emit a PC update on the
+         // trapped instruction (must be before event records)
+         stf_writer << stf::InstPCTargetRecord(npc);
+
 
          // Register/memory records must come before event records
          if(_trace_register_state) {
            emit_register_records(p);
-           p->get_state()->log_reg_write.clear();
+           stash_log_reg_write = state->log_reg_write;
+           state->log_reg_write.clear();
          }
 
          if(_trace_memory_records) {
            emit_memory_records(p);
-           p->get_state()->log_mem_read.clear();
-           p->get_state()->log_mem_write.clear();
+           stash_log_mem_write = state->log_mem_write;
+           stash_log_mem_read  = state->log_mem_read;
+           state->log_mem_write.clear();
+           state->log_mem_read.clear();
          }
-
-         // If we are tracing events, emit a PC update on the
-         // trapped instruction (must be before event records)
-         stf_writer << stf::InstPCTargetRecord(npc);
 
          stf_writer << stf::EventRecord(stf::EventRecord::_STF_ENUM_TYPE::TYPE((uint64_t)t.cause()), content_data);
          stf_writer << stf::EventPCTargetRecord((uint64_t) npc);
@@ -488,6 +495,17 @@ struct StfTracer
               _fetch = (insn_fetch_t)0;
       }
       trace_insn(p, _fetch, pc, npc, debug);
+
+      if (trace_this_event && stf_writer && _in_trace_region) {
+        if(_trace_register_state) {
+          state->log_reg_write = stash_log_reg_write;
+        }
+
+        if(_trace_memory_records) {
+          state->log_mem_write = stash_log_mem_write;
+          state->log_mem_read = stash_log_mem_read;
+        }
+      }
 
       // Generally, don't count events toward total instructions executed, even if they're traced.
       // Unfortunately it's hard to know if an event traced an instruction or not
@@ -621,12 +639,6 @@ struct StfTracer
       stf_writer << stf::InstMemContentRecord(value & bit_mask(size));
     }
 
-    //TODO: this is a coordination problem with Spike's native logging
-    //      scheme. Add check to make sure --stf_trace_memory_records
-    //      is not enabled at the same time as --log-commits until a
-    //      coordination test can be written.
-    state->log_mem_read.clear();
-
     // Memory writes
     for(const auto &store : state->log_mem_write) {
       auto [addr, value, size] = store;
@@ -635,9 +647,6 @@ struct StfTracer
                     stf::INST_MEM_ACCESS::WRITE);
       stf_writer << stf::InstMemContentRecord((long int) value);
     }
-
-    //TODO see above
-    state->log_mem_write.clear();
   }
 
   // ----------------------------------------------------------------
@@ -657,7 +666,6 @@ struct StfTracer
             stf::Registers::STF_REG_OPERAND_TYPE::REG_DEST,
             r.second.v[0]);
     }
-    state->log_reg_write.clear();
   }
 
   // ----------------------------------------------------------------
