@@ -424,6 +424,9 @@ struct StfHandler
 
     priv_modes = "USHM";
     prog_ppn = -1;
+
+    _trace_register_state = false;
+    _trace_memory_records = false;
   }
 
   void create_tracer() {
