@@ -50,7 +50,7 @@ mhandler:
     # Set MPP = 1
     li t4, 0x1800
     csrrc t4, mstatus, t4
-    li t4, (1 << 11)
+    li t4, (0 << 11)
     csrs mstatus, t4
 
     csrr t4, mepc
