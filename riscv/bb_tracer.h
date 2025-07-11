@@ -66,6 +66,8 @@ private:
 
     void flush_bb_vector(uint64_t steps);
 
+    void log_simpoint_tracks(uint64_t pc);
+
     struct Simpoint {
         Simpoint(uint64_t i, int j) : start(i), id(j) {}
 
