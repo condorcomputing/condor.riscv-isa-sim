@@ -25,7 +25,7 @@ bb_tracer::bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_
                      uint64_t simpoint_size, uint64_t warmup_size, uint32_t heart_id) : m_proc(proc),
                                                                   m_simpoint_size(simpoint_size),
                                                                   m_next_id(1),
-                                                                  m_next_bbv_dump(simpoint_size),
+                                                                  m_next_bbv_dump(simpoint_size+1),
                                                                   m_heart_id(heart_id),
                                                                   m_en_bbv(en_bbv),
                                                                   m_warmup_size(warmup_size) {
@@ -92,48 +92,6 @@ int bb_tracer::capture_basic_block(const uint64_t pc) {
         m_ninst = 0;
     }
 
-    // Log info on first/last instruction in each snippet
-    if (m_total_insn_in_roi == m_next_bbv_dump) {
-        // Last instruction in snippet
-        snippet_end_insn_track.total_instr_count = m_proc->get_executed_insns();
-        snippet_end_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
-        snippet_end_insn_track.roi_instr_count = m_total_insn_in_roi;
-        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
-        snippet_end_insn_track.pc = pc;
-
-        if (m_warmup_size) {
-            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_instr_count << " ";
-            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_umode_instr_count << " ";
-            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.roi_instr_count << " ";
-            m_bb_tracks_file << std::hex << snippet_warmup_insn_track.pc << " ";
-        }
-
-        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_start_insn_track.roi_instr_count << " ";
-        m_bb_tracks_file << std::hex << snippet_start_insn_track.pc << " ";
-
-        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_umode_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_end_insn_track.roi_instr_count << " ";
-        m_bb_tracks_file << std::hex << snippet_end_insn_track.pc << std::endl;
-
-        m_bb_tracks_file.flush();
-    } else if (m_total_insn_in_roi - 1 == m_next_bbv_dump - m_simpoint_size) {
-        // First instruction in snippet
-        snippet_start_insn_track.total_instr_count = m_proc->get_executed_insns();
-        snippet_start_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
-        snippet_start_insn_track.roi_instr_count = m_total_insn_in_roi;
-        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
-        snippet_start_insn_track.pc = pc;
-    } else if (m_total_insn_in_roi - 1 == m_next_bbv_dump - m_warmup_size) {
-        snippet_warmup_insn_track = next_snippet_warmup_insn_track;
-        next_snippet_warmup_insn_track.total_instr_count = m_proc->get_executed_insns();
-        next_snippet_warmup_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
-        next_snippet_warmup_insn_track.roi_instr_count = m_total_insn_in_roi;
-        next_snippet_warmup_insn_track.pc = pc;
-    }
-
     return 1; // Compatibility with original
 }
 
@@ -148,13 +106,21 @@ void bb_tracer::simpoint_step(uint64_t steps, uint64_t pc) {
             return;
         }
     }
-    if (m_last_pc && m_simpoint_roi) {
+    if (m_last_pc && m_simpoint_roi && m_last_pc != m_simpoint_en_pc) {
+        capture_basic_block(pc);
+        flush_bb_vector(steps);
         m_total_insn_in_roi++;
         m_ninst++;
-        capture_basic_block(pc);
+        log_simpoint_tracks(pc);
+    } else if (m_simpoint_roi && pc != m_simpoint_en_pc) {
+        m_total_insn_in_roi++;
+        m_ninst++;
         flush_bb_vector(steps);
     }
     if (m_simpoint_roi && pc != m_simpoint_en_pc) {
+        if (m_last_pc == m_simpoint_en_pc) {
+            log_simpoint_tracks(pc);
+        }
         m_last_pc = pc;
     }
     if(unlikely(m_terminate)){
@@ -188,7 +154,6 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
             std::cerr << "simpoint ROI already started\n";
         } else if ((val & 3) == 0 && m_simpoint_roi) {
             std::cerr << "simpoint ROI finished\n";
-            m_ninst++;
             capture_basic_block(0);
             flush_bb_vector(1u);
             m_simpoint_roi = false;
@@ -199,6 +164,7 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
             std::cerr << "simpoint ROI started\n";
             m_simpoint_roi = true;
             m_simpoint_en_pc = pc;
+            m_last_pc = pc;
             m_total_insn_in_roi = 0;
             m_insn_num_roi_started = executed_insn_cnt;
 
@@ -212,6 +178,49 @@ void bb_tracer::handle_simpoint_macro(uint64_t pc, const reg_t val, const uint64
     }
 }
 
+void bb_tracer::log_simpoint_tracks(uint64_t pc) {
+    // Log info on first/last instruction in each snippet
+    if (m_total_insn_in_roi == m_next_bbv_dump-1) {
+        // Last instruction in snippet
+        snippet_end_insn_track.total_instr_count = m_proc->get_executed_insns();
+        snippet_end_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        snippet_end_insn_track.roi_instr_count = m_total_insn_in_roi;
+        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
+        snippet_end_insn_track.pc = pc;
+
+        if (m_warmup_size) {
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_instr_count << " ";
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_umode_instr_count << " ";
+            m_bb_tracks_file << std::dec << snippet_warmup_insn_track.roi_instr_count << " ";
+            m_bb_tracks_file << std::hex << snippet_warmup_insn_track.pc << " ";
+        }
+
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_start_insn_track.roi_instr_count << " ";
+        m_bb_tracks_file << std::hex << snippet_start_insn_track.pc << " ";
+
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.total_umode_instr_count << " ";
+        m_bb_tracks_file << std::dec << snippet_end_insn_track.roi_instr_count << " ";
+        m_bb_tracks_file << std::hex << snippet_end_insn_track.pc << std::endl;
+
+        m_bb_tracks_file.flush();
+    } else if (m_total_insn_in_roi == m_next_bbv_dump - m_simpoint_size) {
+        // First instruction in snippet
+        snippet_start_insn_track.total_instr_count = m_proc->get_executed_insns();
+        snippet_start_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        snippet_start_insn_track.roi_instr_count = m_total_insn_in_roi;
+        //snippet_end_insn_track.roi_umode_instr_count =   // TODO
+        snippet_start_insn_track.pc = pc;
+    } else if (m_next_bbv_dump - m_total_insn_in_roi == m_warmup_size) {
+        snippet_warmup_insn_track = next_snippet_warmup_insn_track;
+        next_snippet_warmup_insn_track.total_instr_count = m_proc->get_executed_insns();
+        next_snippet_warmup_insn_track.total_umode_instr_count = m_proc->get_executed_umode_insns();
+        next_snippet_warmup_insn_track.roi_instr_count = m_total_insn_in_roi;
+        next_snippet_warmup_insn_track.pc = pc;
+    }
+}
 
 namespace bb_tracer_options {
     bool en_bbv = false;
