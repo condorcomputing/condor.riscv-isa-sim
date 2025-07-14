@@ -860,17 +860,21 @@ struct StfTracer
   }
 
   void simpoint_csr_write_notify(processor_t *const proc, const reg_t value) {
-    if (count_from_bbv_roi) {
-      insn_num_tracing = true;
-      executed_instructions = 0;
-      executed_umode_instructions = 0;
-    }
+    if ((value & 0x3) == 1) {
+       if (count_from_bbv_roi) {
+         insn_num_tracing = true;
+         executed_instructions = 0;
+         executed_umode_instructions = 0;
+       }
 
-    if (prog_ppn == -1) {
-      auto  _xlen = proc->get_xlen();
-      reg_t _satp = proc->get_state()->satp->read();
-      reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
-      prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+       if (prog_ppn == -1) {
+         auto  _xlen = proc->get_xlen();
+         reg_t _satp = proc->get_state()->satp->read();
+         reg_t _ppn = get_field(_satp, _xlen == 32 ? SATP32_PPN : SATP64_PPN);
+         prog_ppn = (uint64_t) (_ppn & _PPN_MASK);
+       }
+    } else {
+       prog_ppn = -1;
     }
   }
 
