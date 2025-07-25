@@ -90,6 +90,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
   fprintf(stderr, "  --instructions=<n>    Stop after n instructions\n");
+  fprintf(stderr, "  --restore_checkpoint=<file>      Restore checkpoint from <file>\n");
 
   bb_tracer_options::bbv_options_help();
   stfhandler->stf_help();
@@ -350,6 +351,7 @@ int main(int argc, char** argv)
   std::optional<unsigned long long> instructions;
   debug_module_config_t dm_config;
   cfg_arg_t<size_t> nprocs(1);
+  std::string checkpoint_file {""};
 
   cfg_t cfg;
 
@@ -465,6 +467,8 @@ int main(int argc, char** argv)
   parser.option(0, "instructions", 1, [&](const char* s){
     instructions = strtoull(s, 0, 0);
   });
+  parser.option(0, "checkpoint_interval", 1, [&](const char *s){cfg.checkpoint_interval = atoul_safe(s);});
+  parser.option(0, "restore_checkpoint", 1, [&](const char *s){checkpoint_file = s;});
 
   // BBV capture options
   bb_tracer_options::set_options(parser);
@@ -475,7 +479,12 @@ int main(int argc, char** argv)
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
-  if (!*argv1 || !stfhandler->option_checks(cfg, bb_tracer_options::en_bbv)) {
+  if (checkpoint_file != "") {
+    htif_args.insert(htif_args.begin(),"true");
+    htif_args.insert(htif_args.begin(),"--checkpoint-restore");
+  }
+
+  if ((checkpoint_file == "" && !*argv1) || !stfhandler->option_checks(cfg, bb_tracer_options::en_bbv)) {
     help();
   }
 
@@ -564,6 +573,22 @@ int main(int argc, char** argv)
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
   s.set_quiet_mode(quiet_mode);
+
+  if (checkpoint_file != "") {
+    json j;
+    if (!check_file_exists(checkpoint_file.c_str())) {
+      std::cerr << "-E checkpoint restore file not found: " << checkpoint_file << std::endl;
+      exit(-1);
+    }
+    std::cerr << "Running checkpoint restore from " << checkpoint_file << std::endl;
+    std::ifstream in(checkpoint_file);
+    if (!in) {
+        std::cerr << "-E Failed to open checkpoint file for reading\n";
+    } else {
+        in >> j;
+    }
+    s.checkpoint_restore(j);
+  }
 
   auto exe_start = high_resolution_clock::now();
 

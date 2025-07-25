@@ -9,6 +9,7 @@
 #include "platform.h"
 #include "libfdt.h"
 #include "socketif.h"
+#include "json.hpp"
 #include <fstream>
 #include <map>
 #include <iostream>
@@ -20,6 +21,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+
+using json = nlohmann::json;
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -437,17 +440,22 @@ void sim_t::idle()
   if (debug || ctrlc_pressed)
     interactive();
   else {
-    if (instruction_limit.has_value()) {
-      if (*instruction_limit < INTERLEAVE) {
-        // Final step.
-        step(*instruction_limit);
-        htif_exit(0);
-        *instruction_limit = 0;
-        return;
+    if (checkpoint_restored) {
+      step(steps_remaining);
+      checkpoint_restored = false;
+    } else {
+      if (instruction_limit.has_value()) {
+        if (*instruction_limit < INTERLEAVE) {
+          // Final step.
+          step(*instruction_limit);
+          htif_exit(0);
+          *instruction_limit = 0;
+          return;
+        }
+        *instruction_limit -= INTERLEAVE;
       }
-      *instruction_limit -= INTERLEAVE;
+      step(INTERLEAVE);
     }
-    step(INTERLEAVE);
   }
 
   if (remote_bitbang)
@@ -477,4 +485,42 @@ endianness_t sim_t::get_target_endianness() const
 void sim_t::proc_reset(unsigned id)
 {
   debug_module.proc_reset(id);
+}
+
+json sim_t::checkpoint(std::string tag) {
+  json j;
+
+  std::string cp_name = "checkpoint_" + tag + ".json";
+
+  std::cerr << "Creating checkpoint " << cp_name << std::endl;
+
+  j["bus"] = bus.checkpoint(tag);
+
+  for (size_t i=0; i<procs.size(); i++) {
+    j["proc_" + std::to_string(i)] = procs[i]->checkpoint();
+  }
+  j["current_step"] = current_step + (INTERLEAVE - j["proc_0"]["steps_remaining"].get<reg_t>());
+
+  std::ofstream out(cp_name);
+
+  if (!out) {
+    std::cerr << "Failed to open checkpoint file for writing\n";
+  } else {
+    out << j.dump(2);
+  }
+
+  return j;
+}
+
+void sim_t::checkpoint_restore(json j) {
+  bus.checkpoint_restore(j["bus"]);
+
+  for (size_t i=0; i<procs.size(); i++) {
+    procs[i]->checkpoint_restore(j["proc_" + std::to_string(i)]);
+  }
+
+  // TODO, support multiple procs (record current_proc)
+  steps_remaining = j["proc_0"]["steps_remaining"].get<reg_t>();
+  current_step = j["current_step"];
+  checkpoint_restored = true;
 }

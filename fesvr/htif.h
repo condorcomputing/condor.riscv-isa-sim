@@ -75,7 +75,7 @@ class htif_t : public chunked_memif_t
 
   // indicates that the initial program load can skip writing this address
   // range to memory, because it has already been loaded through a sideband
-  virtual bool is_address_preloaded(addr_t, size_t) { return false; }
+  virtual bool is_address_preloaded(addr_t, size_t) { return checkpoint_restore; }
 
   // Given an address, return symbol from addr2symbol map
   const char* get_symbol(uint64_t addr);
@@ -110,6 +110,7 @@ class htif_t : public chunked_memif_t
   bcd_t bcd;
   std::vector<device_t*> dynamic_devices;
   std::vector<std::string> payloads;
+  bool checkpoint_restore;
 
   std::vector<std::string> symbol_elfs;
   std::map<uint64_t, std::string> addr2symbol;
@@ -162,6 +163,7 @@ TARGET (RISC-V BINARY) OPTIONS\n\
 {"signature-granularity",    required_argument, 0, HTIF_LONG_OPTIONS_OPTIND + 5 },     \
 {"target-argument",          required_argument, 0, HTIF_LONG_OPTIONS_OPTIND + 6 },     \
 {"symbol-elf",               required_argument, 0, HTIF_LONG_OPTIONS_OPTIND + 7 },     \
+{"checkpoint-restore",       required_argument, 0, HTIF_LONG_OPTIONS_OPTIND + 8 },     \
 {0, 0, 0, 0}
 
 #endif // __HTIF_H

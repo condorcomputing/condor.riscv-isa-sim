@@ -207,6 +207,9 @@ struct state_t
 
   bool critical_error;
 
+  json checkpoint();
+  void checkpoint_restore(json cp);
+
  private:
   void csr_init(processor_t* const proc, reg_t max_isa);
 };
@@ -399,6 +402,10 @@ public:
   std::shared_ptr<StfHandler> get_stf_handler();
   uint64_t get_executed_insns();
   uint64_t get_executed_umode_insns();
+  uint64_t get_executed_roi_umode_insns();
+
+  json checkpoint() override;
+  void checkpoint_restore(json j) override;
 
 private:
   const isa_parser_t isa;
@@ -421,6 +428,8 @@ private:
   bool check_triggers_icount;
   std::vector<bool> impl_table;
   bb_tracer m_bb_tracer;
+  reg_t steps_remaining;
+  bool checkpoint_restored{false};
 
   // Note: does not include single-letter extensions in misa
   std::bitset<NUM_ISA_EXTENSIONS> extension_enable_table;
@@ -452,6 +461,7 @@ private:
   friend class clint_t;
   friend class plic_t;
   friend class extension_t;
+  friend class bb_tracer;
 
   void parse_priv_string(const char*);
   void build_opcode_map();
@@ -460,6 +470,8 @@ private:
 
   // Track repeated executions for processor_t::disasm()
   uint64_t last_pc, last_bits, executions;
+  void maybe_checkpoint_interval(reg_t pc, reg_t npc, reg_t instret, reg_t steps_remaining);
+  uint64_t checkpoint_interval {0};
 public:
   entropy_source es; // Crypto ISE Entropy source.
 

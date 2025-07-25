@@ -6,6 +6,9 @@
 #include <map>
 #include "decode.h"
 #include "cfg.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 class processor_t;
 class mmu_t;
@@ -34,6 +37,9 @@ public:
   unsigned nprocs() const { return get_cfg().nprocs(); }
 
   mmu_t* debug_mmu;  // debug port into main memory, for use by debug_module
+
+  virtual json checkpoint(std::string tag) = 0;
+  virtual void checkpoint_restore(json j) = 0;
 };
 
 #endif

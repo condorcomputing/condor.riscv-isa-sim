@@ -47,7 +47,7 @@ static void handle_signal(int sig)
 htif_t::htif_t()
   : mem(this), entry(DRAM_BASE), sig_addr(0), sig_len(0),
     tohost_addr(0), fromhost_addr(0), stopped(false),
-    syscall_proxy(this)
+    syscall_proxy(this), checkpoint_restore(false)
 {
   signal(SIGINT, &handle_signal);
   signal(SIGTERM, &handle_signal);
@@ -362,6 +362,9 @@ void htif_t::parse_arguments(int argc, char ** argv)
       case HTIF_LONG_OPTIONS_OPTIND + 7:
         symbol_elfs.push_back(optarg);
         break;
+      case HTIF_LONG_OPTIONS_OPTIND + 8:
+        checkpoint_restore = true;
+        break;
       case '?':
         if (!opterr)
           break;
@@ -408,6 +411,10 @@ void htif_t::parse_arguments(int argc, char ** argv)
           c = HTIF_LONG_OPTIONS_OPTIND + 7;
           optarg = optarg + 12;
         }
+        else if (arg.find("+checkpoint_restore") == 0) {
+          c = HTIF_LONG_OPTIONS_OPTIND + 8;
+          optarg = optarg+19;
+        }
         else if (arg.find("+permissive-off") == 0) {
           if (opterr)
             throw std::invalid_argument("Found +permissive-off when not parsing permissively");
@@ -436,7 +443,7 @@ void htif_t::parse_arguments(int argc, char ** argv)
 done_processing:
   while (optind < argc)
     targs.push_back(argv[optind++]);
-  if (!targs.size()) {
+  if (!targs.size() && !checkpoint_restore) {
     usage(argv[0]);
     throw std::invalid_argument("No binary specified (Did you forget it? Did you forget '+permissive-off' if running with +permissive?)");
   }
