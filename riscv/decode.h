@@ -8,12 +8,15 @@
 #endif
 
 #include "../softfloat/softfloat_types.h"
+#include "json.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <string.h>
 #include <strings.h>
 #include <cinttypes>
 #include <type_traits>
+
+using json = nlohmann::json;
 
 typedef int64_t sreg_t;
 typedef uint64_t reg_t;

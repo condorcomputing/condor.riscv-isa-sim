@@ -12,6 +12,7 @@
 #include "platform.h"
 #include "vector_unit.h"
 #include "debug_defines.h"
+#include "json.hpp"
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
@@ -22,6 +23,8 @@
 #include <stdexcept>
 #include <string>
 #include <algorithm>
+
+using json = nlohmann::json;
 
 #ifdef __GNUC__
 # pragma GCC diagnostic ignored "-Wunused-variable"
@@ -50,7 +53,9 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
               bb_tracer_options::simpoint_size,
               bb_tracer_options::warmup_size, id),
   extension_enable_table(isa.get_extension_table()),
-  last_pc(1), executions(1), TM(cfg->trigger_count)
+  last_pc(1), executions(1),
+  checkpoint_interval(cfg->checkpoint_interval * bb_tracer_options::simpoint_size),
+  TM(cfg->trigger_count)
 {
   VU.p = this;
   TM.proc = this;
@@ -173,6 +178,198 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   critical_error = false;
 
   csr_init(proc, max_isa);
+}
+
+json state_t::checkpoint() {
+  json j;
+
+  for (auto csr : csrmap) {
+    if (auto csr_p = dynamic_pointer_cast<mstatus_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto csr_p = dynamic_pointer_cast<wide_counter_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto csr_p = dynamic_pointer_cast<mip_or_mie_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto csr_p = dynamic_pointer_cast<vsstatus_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto vcsr_p = dynamic_pointer_cast<virtualized_csr_t>(csr.second)) {
+      if (auto csr_p = dynamic_pointer_cast<epc_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->val;
+      } else if (auto csr_p = dynamic_pointer_cast<tvec_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->val;
+      } else if (auto csr_p = dynamic_pointer_cast<sstatus_proxy_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->read();
+      } else if (auto csr_p = dynamic_pointer_cast<mie_proxy_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->read();
+      } else if (auto csr_p = dynamic_pointer_cast<mip_proxy_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->read();
+      } else if (auto csr_p = dynamic_pointer_cast<stimecmp_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = {{"orig", csr_p->val}};
+        j[std::to_string(csr.first)]["orig_mask"] = csr_p->intr_mask;
+        if (auto csr_v = dynamic_pointer_cast<stimecmp_csr_t>(vcsr_p->virt_csr)) {
+          j[std::to_string(csr.first)]["virt"] = csr_v->val;
+          j[std::to_string(csr.first)]["virt_mask"] = csr_v->intr_mask;
+        }
+      } else if (auto csr_p = dynamic_pointer_cast<basic_csr_t>(vcsr_p->orig_csr)) {
+        j[std::to_string(csr.first)] = csr_p->val;
+      } else {
+        //std::cerr << csr.first << " : " << vcsr_p->read() << " [Unknown virtualized csr]" << std::endl;
+      }
+    } else if (auto csr_p = dynamic_pointer_cast<counter_proxy_csr_t>(csr.second)) {
+      if (auto csr_del_p = dynamic_pointer_cast<time_counter_csr_t>(csr_p->delegate)) {
+        j[std::to_string(csr.first)] = csr_del_p->shadow_val;
+      }
+    } else if (auto csr_p = dynamic_pointer_cast<tvec_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto csr_p = dynamic_pointer_cast<epc_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (auto csr_p = dynamic_pointer_cast<pmpaddr_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = json{{"val", csr_p->val}, {"cfg", csr_p->cfg}};
+    } else if (auto csr_p = dynamic_pointer_cast<hstateen_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = json{{"val", csr_p->val}, {"index", csr_p->index}};
+    } else if (auto csr_p = dynamic_pointer_cast<time_counter_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->shadow_val;
+    } else if (auto csr_p = dynamic_pointer_cast<basic_csr_t>(csr.second)) {
+      j[std::to_string(csr.first)] = csr_p->val;
+    } else if (dynamic_pointer_cast<proxy_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<tinfo_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<tdata1_csr_t>(csr.second) ||
+               dynamic_pointer_cast<tdata2_csr_t>(csr.second) ||
+               dynamic_pointer_cast<tdata3_csr_t>(csr.second) ||
+               dynamic_pointer_cast<const_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<pmpcfg_csr_t>(csr.second) ||
+               dynamic_pointer_cast<csr_t>(csr.second)) {
+      // contains no storage
+    } else {
+      //std::cerr << csr.first << " : " << " [unknown type]" << std::endl;
+    }
+  }
+
+  j["pc"] = pc;
+  j["prv"] = prv;
+  j["prev_prv"] = prev_prv;
+  j["prv_changed"] = prv_changed;
+  j["v_changed"] = v_changed;
+  j["v"] = v;
+  j["prev_v"] = prev_v;
+  j["debug_mode"] = debug_mode;
+  j["serialized"] = serialized;
+  j["single_step"] = single_step;
+  j["last_inst_priv"] = last_inst_priv;
+  j["last_inst_xlen"] = last_inst_xlen;
+  j["last_inst_flen"] = last_inst_flen;
+  j["elp_t"] = elp;
+  j["taken_branch_flag"] = taken_branch_flag;
+  j["critical_error"] = critical_error;
+
+  j["fpr"] = {};
+  for (size_t regnum=0; regnum<NFPR; regnum++) {
+     freg_t regval = FPR[regnum];
+     j["fpr"][std::to_string(regnum)] = json{{"0", regval.v[0]}, {"1", regval.v[1]}};
+  }
+
+  j["xpr"] = {};
+  for (size_t regnum=0; regnum<NXPR; regnum++) {
+     reg_t regval = XPR[regnum];
+     j["xpr"][std::to_string(regnum)] = regval;
+  }
+
+  return j;
+}
+
+void state_t::checkpoint_restore(json j) {
+  for (auto csr : csrmap) {
+    if (auto csr_p = dynamic_pointer_cast<mstatus_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<wide_counter_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<mip_or_mie_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<vsstatus_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto vcsr_p = dynamic_pointer_cast<virtualized_csr_t>(csr.second)) {
+      if (auto csr_p = dynamic_pointer_cast<epc_csr_t>(vcsr_p->orig_csr)) {
+        csr_p->val = j[std::to_string(csr.first)];
+      } else if (auto csr_p = dynamic_pointer_cast<tvec_csr_t>(vcsr_p->orig_csr)) {
+        csr_p->val = j[std::to_string(csr.first)];
+      } else if (dynamic_pointer_cast<sstatus_proxy_csr_t>(vcsr_p->orig_csr) ||
+                 dynamic_pointer_cast<mie_proxy_csr_t>(vcsr_p->orig_csr)     ||
+                 dynamic_pointer_cast<mip_proxy_csr_t>(vcsr_p->orig_csr)) {
+        // contains no storage
+      } else if (auto csr_p = dynamic_pointer_cast<stimecmp_csr_t>(vcsr_p->orig_csr)) {
+        csr_p->val = j[std::to_string(csr.first)]["orig"];
+        csr_p->intr_mask = j[std::to_string(csr.first)]["orig_mask"];
+        if (auto csr_v = dynamic_pointer_cast<stimecmp_csr_t>(vcsr_p->virt_csr)) {
+          csr_v->val = j[std::to_string(csr.first)]["virt"];
+          csr_v->intr_mask = j[std::to_string(csr.first)]["virt_mask"];
+        }
+      } else if (auto csr_p = dynamic_pointer_cast<basic_csr_t>(vcsr_p->orig_csr)) {
+        csr_p->val = j[std::to_string(csr.first)];
+      } else {
+        std::cerr << csr.first << " : " << vcsr_p->read() << " [Unknown virtualized csr]" << std::endl;
+      }
+    } else if (auto csr_p = dynamic_pointer_cast<counter_proxy_csr_t>(csr.second)) {
+      if (auto csr_del_p = dynamic_pointer_cast<time_counter_csr_t>(csr_p->delegate)) {
+        csr_del_p->shadow_val = j[std::to_string(csr.first)];
+      }
+    } else if (auto csr_p = dynamic_pointer_cast<tvec_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<epc_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<pmpaddr_csr_t>(csr.second)) {
+      json pmp = j[std::to_string(csr.first)];
+      csr_p->val = pmp["val"];
+      csr_p->cfg = pmp["cfg"];
+    } else if (auto csr_p = dynamic_pointer_cast<hstateen_csr_t>(csr.second)) {
+      json reg = j[std::to_string(csr.first)];
+      csr_p->val = reg["val"];
+      csr_p->index = reg["index"];
+    } else if (auto csr_p = dynamic_pointer_cast<time_counter_csr_t>(csr.second)) {
+      csr_p->shadow_val = j[std::to_string(csr.first)];
+    } else if (auto csr_p = dynamic_pointer_cast<basic_csr_t>(csr.second)) {
+      csr_p->val = j[std::to_string(csr.first)];
+    } else if (dynamic_pointer_cast<proxy_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<tinfo_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<tdata1_csr_t>(csr.second) ||
+               dynamic_pointer_cast<tdata2_csr_t>(csr.second) ||
+               dynamic_pointer_cast<tdata3_csr_t>(csr.second) ||
+               dynamic_pointer_cast<const_csr_t>(csr.second)  ||
+               dynamic_pointer_cast<pmpcfg_csr_t>(csr.second) ||
+               dynamic_pointer_cast<csr_t>(csr.second)) {
+      // contains no storage
+    } else {
+      std::cerr << csr.first << " : " << " [unknown type]" << std::endl;
+    }
+  }
+
+  pc = j["pc"];
+  prv = j["prv"];
+  prev_prv = j["prev_prv"];
+  prv_changed = j["prv_changed"];
+  v_changed = j["v_changed"];
+  v = j["v"];
+  prev_v = j["prev_v"];
+  debug_mode = j["debug_mode"];
+  serialized = j["serialized"];
+  single_step = j["single_step"];
+  last_inst_priv = j["last_inst_priv"];
+  last_inst_xlen = j["last_inst_xlen"];
+  last_inst_flen = j["last_inst_flen"];
+  elp = j["elp_t"];
+  taken_branch_flag = j["taken_branch_flag"];
+  critical_error = j["critical_error"];
+
+  for (size_t regnum=0; regnum<NFPR; regnum++) {
+     freg_t f;
+     f.v[0] = j["fpr"][std::to_string(regnum)]["0"];
+     f.v[1] = j["fpr"][std::to_string(regnum)]["1"];
+     FPR.write(regnum, f);
+  }
+
+  for (size_t regnum=0; regnum<NXPR; regnum++) {
+     reg_t regval = j["xpr"][std::to_string(regnum)].get<reg_t>();
+     XPR.write(regnum, regval);
+  }
 }
 
 void processor_t::set_debug(bool value)
@@ -873,4 +1070,34 @@ uint64_t processor_t::get_executed_insns() {
 // FIXME remove this once stfhandler.h is refactored
 uint64_t processor_t::get_executed_umode_insns() {
   return stfhandler->get_executed_umode_insns();
+}
+
+uint64_t processor_t::get_executed_roi_umode_insns() {
+  return stfhandler->get_executed_roi_umode_insns();
+}
+
+json processor_t::checkpoint() {
+  json j;
+
+  j["state"] = get_state()->checkpoint();
+  j["steps_remaining"] = steps_remaining;
+  j["stfhandler"] = stfhandler->checkpoint();
+  j["bb_tracer"] = m_bb_tracer.checkpoint();
+
+  return j;
+}
+
+void processor_t::checkpoint_restore(json j) {
+  get_state()->checkpoint_restore(j["state"]);
+  stfhandler->checkpoint_restore(j["stfhandler"]);
+  if (j.contains("bb_tracer")) {
+    m_bb_tracer.checkpoint_restore(j["bb_tracer"]);
+  }
+
+  // since the checkpoint is created before the instruction
+  // count is incremented, it must be incremented upon restore.
+  stfhandler->incr_executed_instructions(this);
+
+  checkpoint_restored = true;
+
 }

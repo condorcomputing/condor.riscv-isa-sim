@@ -146,7 +146,7 @@ struct StfTracer
     }
 
     write_json_stats(_traced_instructions_running,
-                     executed_instructions, instret_count,
+                     executed_instructions, instret_count, executed_roi_umode_instructions,
                      duration_ms, mips, bbv_insns_per_core, bbv_insn_roi_start_per_core,
                      bbv_benchmark_ppn_per_core, _traced_warmup_insns);
   }
@@ -506,15 +506,35 @@ struct StfTracer
         if (t.cause() != CAUSE_USER_ECALL) {
           --_traced_instructions_region;
           --_traced_instructions_running;
+        } else {
+          ++executed_roi_umode_instructions; // count ecall
         }
       }
     } else {
       _pc_record_stale = true;
     }
   }
+  // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  void incr_executed_roi_umode_instructions(processor_t* proc) {
+    state_t* state = proc->get_state();
+    //Count this instruction if it has the right PRIV level and PPN
+    bool priv_in_range = is_priv_mode_traceable(
+      (state->prv_changed ? state->prev_prv : state->prv),
+      (state->v_changed ? state->prev_v : state->v), "U"
+    );
 
-  // ---------------------------------------------------------------- 
-  // ---------------------------------------------------------------- 
+    auto  _xlen = proc->get_xlen();
+    reg_t _satp = state->satp->read();
+    reg_t _ppn = get_field(_satp,_xlen == 32 ? SATP32_PPN : SATP64_PPN);
+    bool ppn_match = (reg_t) prog_ppn == _ppn;
+
+    if (priv_in_range && ppn_match) {
+      executed_roi_umode_instructions++;
+    }
+  }
+  // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
   void info(processor_t *p,const char* fmt, ...)
   {
     if (!p->in_quiet_mode()) {
@@ -533,6 +553,7 @@ struct StfTracer
   bool write_json_stats(uint64_t traced_instructions_running,
                         uint64_t exec_instructions,
                         uint64_t instret_count,
+                        uint64_t executed_roi_umode_instructions,
                         double   duration_ms,
                         double   mips,
                         std::vector<long int> num_bbv_insns,
@@ -558,6 +579,9 @@ struct StfTracer
 
     jout<<"    \"instructions_retired\" : "
         << std::dec<< instret_count <<","<<std::endl;
+
+    jout<<"    \"executed_roi_umode_instructions\" : "
+        << std::dec<< executed_roi_umode_instructions <<","<<std::endl;
 
     jout<<"    \"duration_ms\" : "
         << std::fixed << std::setprecision(3)<<duration_ms <<","<<std::endl;
@@ -858,6 +882,8 @@ struct StfTracer
          executed_umode_instructions = 0;
        }
 
+       executed_roi_umode_instructions = 0;
+
        if (prog_ppn == -1) {
          auto  _xlen = proc->get_xlen();
          reg_t _satp = proc->get_state()->satp->read();
@@ -904,6 +930,7 @@ public:
   bool trace_file_open{false};
   uint64_t executed_instructions{0};
   uint64_t executed_umode_instructions{0};
+  uint64_t executed_roi_umode_instructions{0};
   uint64_t last_npc{0};
   uint32_t insn_bytes{0};
   bool     is_taken_branch{false};
