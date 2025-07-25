@@ -9,6 +9,9 @@
 #include "decode.h"
 #include "csrs.h"
 #include "fesvr/option_parser.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 class processor_t;
 namespace bb_ctrl {
@@ -60,12 +63,18 @@ public:
 
     uint64_t get_benchmark_ppn() const;
 
+    void log_simpoint_tracks(uint64_t pc);
+    void log_simpoint_warmup_insn_track(uint64_t pc);
+    void log_simpoint_start_track(uint64_t pc);
+    void log_simpoint_end_insn_track(uint64_t pc);
+
+    json checkpoint();
+    void checkpoint_restore(json j);
+
 private:
     int capture_basic_block(uint64_t pc);
 
     void flush_bb_vector(uint64_t steps);
-
-    void log_simpoint_tracks(uint64_t pc);
 
     struct Simpoint {
         Simpoint(uint64_t i, int j) : start(i), id(j) {}
@@ -83,8 +92,8 @@ private:
     std::fstream m_bb_file;
     std::fstream m_bb_tracks_file;
     std::fstream m_simpoint_file;
-    std::unordered_map<uint64_t, uint64_t> m_bbv;
-    std::unordered_map<uint64_t, uint64_t> m_pc2id;
+    std::map<uint64_t, uint64_t> m_bbv;
+    std::map<uint64_t, uint64_t> m_pc2id;
     int m_next_id{1};
     uint64_t m_ninst{0};
     uint64_t m_next_bbv_dump{0};
@@ -103,6 +112,7 @@ private:
     instr_track_t snippet_end_insn_track;
     reg_t m_ppn{0};
     uint64_t m_warmup_size{0};
+    uint64_t flush_instr_cnt{0};
 };
 
 namespace bb_tracer_options {
@@ -111,6 +121,8 @@ namespace bb_tracer_options {
     extern uint64_t simpoint_size;
     extern bool bbv_umode_only;
     extern uint64_t warmup_size;
+    extern uint64_t start_interval;
+    extern uint64_t max_intervals;
     extern bool encode_bb_ids;
 
     void set_options(option_parser_t &parser);

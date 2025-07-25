@@ -9,6 +9,7 @@
 #include "log_file.h"
 #include "processor.h"
 #include "simif.h"
+#include "json.hpp"
 
 #include <fesvr/htif.h>
 #include <vector>
@@ -17,6 +18,8 @@
 #include <string>
 #include <memory>
 #include <sys/types.h>
+
+using json = nlohmann::json;
 
 class mmu_t;
 class remote_bitbang_t;
@@ -107,6 +110,8 @@ private:
   bool log;
   remote_bitbang_t* remote_bitbang;
   std::optional<std::function<void()>> next_interactive_action;
+  reg_t steps_remaining;
+  bool checkpoint_restored {false};
 
   // If padd corresponds to memory (as opposed to an I/O device), return a
   // host pointer corresponding to paddr.
@@ -170,6 +175,9 @@ public:
   // enumerate processors, which segfaults if procs hasn't been initialized
   // yet.
   debug_module_t debug_module;
+
+  json checkpoint(std::string tag);
+  void checkpoint_restore(json j);
 };
 
 extern volatile bool ctrlc_pressed;

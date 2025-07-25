@@ -9,6 +9,9 @@
 #include <map>
 #include <stdexcept>
 #include <vector>
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 class sim_t;
 
@@ -19,6 +22,8 @@ class abstract_device_t {
   virtual reg_t size() = 0;
   virtual ~abstract_device_t() {}
   virtual void tick(reg_t UNUSED rtc_ticks) {}
+  virtual json checkpoint() {json j; return j;}
+  virtual void checkpoint_restore(json j) {}
 };
 
 // factory for devices which should show up in the DTS, and can be

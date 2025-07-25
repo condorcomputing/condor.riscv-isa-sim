@@ -158,6 +158,46 @@ inline void processor_t::update_histogram(reg_t pc)
     pc_histogram[pc]++;
 }
 
+void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, reg_t instret, reg_t steps_remaining) {
+   uint64_t executed_insns = stfhandler->get_executed_roi_umode_insns();
+
+   if (executed_insns && checkpoint_interval && (executed_insns % checkpoint_interval == 0)) {
+     this->steps_remaining = steps_remaining;
+
+     reg_t stash_minstret =  state.minstret->val;
+     reg_t stash_mcycle = state.mcycle->val;
+     if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_IR))
+       state.minstret->val += instret;
+     if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_CY))
+       state.mcycle->val += instret;
+
+     reg_t stash_pc = get_state()->pc;
+     get_state()->pc = npc;
+
+     reg_t interval_num = std::ceil(executed_insns / bb_tracer_options::simpoint_size);
+
+     std::string tag = std::to_string(interval_num) + "_" + std::to_string(get_executed_insns());
+
+     sim->checkpoint(tag);
+
+     get_state()->pc = stash_pc; // or pc?
+     state.minstret->val = stash_minstret;
+     state.mcycle->val = stash_mcycle;
+   }
+
+   if (executed_insns && checkpoint_interval && !bb_tracer_options::en_bbv) {
+      if (executed_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
+        m_bb_tracer.log_simpoint_warmup_insn_track(pc);
+      } else if (executed_insns % bb_tracer_options::simpoint_size == 1) {
+        m_bb_tracer.log_simpoint_start_track(pc);
+      }
+
+      if (executed_insns % checkpoint_interval == 0) {
+        m_bb_tracer.log_simpoint_end_insn_track(pc);
+      }
+   }
+}
+
 // These two functions are expected to be inlined by the compiler separately in
 // the processor_t::step() loop. The logged variant is used in the slow path
 static inline reg_t execute_insn_fast(processor_t* p, reg_t pc, insn_fetch_t fetch) {
@@ -241,10 +281,15 @@ void processor_t::step(size_t n)
   }
 
   while (n > 0) {
-    size_t instret = 0;
+    reg_t instret = 0;
     reg_t pc = state.pc;
-    state.prv_changed = false;
-    state.v_changed = false;
+    reg_t ppc = state.pc;
+    mmu_t* _mmu = mmu;
+
+    if (!checkpoint_restored) {
+      state.prv_changed = false;
+      state.v_changed = false;
+    } else { checkpoint_restored = false; }
     insn_fetch_t fetch;
 
     #define advance_pc() { \
@@ -302,9 +347,11 @@ void processor_t::step(size_t n)
           fetch = mmu->load_insn(pc);
           if (debug && !state.serialized)
             disasm(fetch.insn);
+          ppc = pc;
           pc = execute_insn_logged(this, &state, pc, fetch);
           if (pc != PC_SERIALIZE_BEFORE) {
-            stfhandler->incr_executed_instructions(&state);
+            maybe_checkpoint_interval(ppc, pc, instret, (n)-(instret+1));
+            stfhandler->incr_executed_instructions(this);
           }
           advance_pc();
 
@@ -339,27 +386,27 @@ void processor_t::step(size_t n)
 
           ic_entry = ic_entry->next;
           auto new_pc = execute_insn_fast(this, pc, fetch);
-          stfhandler->incr_executed_instructions(&state);
           if (unlikely(ic_entry->tag != new_pc)) {
             ic_entry = &_mmu->icache[_mmu->icache_index(new_pc)];
             _mmu->icache[_mmu->icache_index(pc)].next = ic_entry;
             if (ic_entry->tag != new_pc) {
-              pc = new_pc;
-              if (pc != PC_SERIALIZE_BEFORE) {
-                stfhandler->incr_executed_instructions(&state);
+              if (new_pc != PC_SERIALIZE_BEFORE) {
+                maybe_checkpoint_interval(pc, new_pc, instret+1, (n)-(instret+1));
+                stfhandler->incr_executed_instructions(this);
 	           }
+              pc = new_pc;
               advance_pc();
               break;
             }
           }
+          maybe_checkpoint_interval(pc, new_pc, instret+1, (n)-(instret+1));
           state.pc = pc = ic_entry->tag;
-          stfhandler->incr_executed_instructions(&state);
+          stfhandler->incr_executed_instructions(this);
         }
 
         if(unlikely(stfhandler->in_traceable_region())) {
           break; //exit while
         }
-
         if(unlikely(m_bb_tracer.in_region_of_interest() || stfhandler->is_start_of_region(0))) {
           break;
         }
@@ -369,9 +416,7 @@ void processor_t::step(size_t n)
     {
       take_trap(t, pc);
 
-      if(unlikely(stfhandler->in_traceable_region())) {
-        stfhandler->trace_event(this,fetch,pc,get_state()->pc,t,"TRAP");
-      }
+      stfhandler->trace_event(this,fetch,pc,get_state()->pc,t,"TRAP");
 
       if (m_bb_tracer.in_region_of_interest() && t.cause() == CAUSE_USER_ECALL && bb_tracer_options::bbv_umode_only) {
          // BBV trace usermode ecalls to keep instruction counts consistent with STF trace
@@ -416,7 +461,8 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
-      stfhandler->incr_executed_instructions(&state);
+      maybe_checkpoint_interval(ppc, pc, instret, 0);
+      stfhandler->incr_executed_instructions(this);
       in_wfi = true;
     }
     catch(stf_trace_complete &e) {

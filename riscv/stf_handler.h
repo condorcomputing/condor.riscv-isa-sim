@@ -15,6 +15,9 @@
 // --------------------------------------------------------------------------
 #pragma once
 #include "stf_tracer.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 struct StfHandler
 {
@@ -126,6 +129,9 @@ struct StfHandler
     for (auto tracer : tracers) {
       if (tracer->in_traceable_region()) {
         tracer->trace_event(p, fetch, pc, npc, t, debug);
+      } else if (t.cause() == CAUSE_USER_ECALL) {
+        ++tracer->executed_umode_instructions;
+        tracer->incr_executed_roi_umode_instructions(p);
       }
     }
   }
@@ -165,13 +171,16 @@ struct StfHandler
     }
     return _is_start;
   }
-  void incr_executed_instructions(state_t* state) {
+  void incr_executed_instructions(processor_t* proc) {
+    state_t* state = proc->get_state();
     for (auto tracer : tracers) {
       ++tracer->executed_instructions;
 
       if ((state->prv_changed ? state->prev_prv : state->prv) == 0) {
         ++tracer->executed_umode_instructions;
       }
+
+      tracer->incr_executed_roi_umode_instructions(proc);
     }
   }
   uint64_t get_executed_insns() {
@@ -184,6 +193,32 @@ struct StfHandler
 
     return tracers[0]->executed_umode_instructions;
   }
+  uint64_t get_executed_roi_umode_insns() {
+    if (tracers.size() == 0) return 0;
+
+    return tracers[0]->executed_roi_umode_instructions;
+  }
+
+  json checkpoint() {
+    json j;
+
+    j["executed_instructions"] = get_executed_insns();
+    j["executed_umode_instructions"] = get_executed_umode_insns();
+    j["executed_roi_umode_instructions"] = get_executed_roi_umode_insns();
+    j["prog_ppn"] = (tracers.size() == 0) ? 0 : tracers[0]->prog_ppn;
+
+    return j;
+  }
+
+  void checkpoint_restore(json j) {
+    for (auto tracer : tracers) {
+      tracer->executed_instructions = j["executed_instructions"];
+      tracer->executed_umode_instructions = j["executed_umode_instructions"];
+      tracer->executed_roi_umode_instructions = j["executed_roi_umode_instructions"];
+      tracer->prog_ppn = j["prog_ppn"];
+    }
+  }
+
   // ----------------------------------------------------------------
   // option support methods
   // ----------------------------------------------------------------

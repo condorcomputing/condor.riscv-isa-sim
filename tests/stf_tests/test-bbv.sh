@@ -34,14 +34,14 @@ check_output() {
 	exit 1
   fi
   # Check if the output file looks right:
-  if [ ! $(grep "T:1:2 :2:9 :3:12" $BBV_OUT | wc -l) == "10" ]; then
+  if [ ! $(grep "T:1:12 :2:2 :3:9" $BBV_OUT | wc -l) == "10" ]; then
 	echo "$THIS_SCRIPT: $BBV_OUT doesn't contain the expected values."
 	echo "Spike command: "
 	echo $SPIKE_COMMAND
 	exit 1
   fi
 
-  if [ ! $(grep -v "T:1:2 :2:9 :3:12" $BBV_OUT | wc -l) == "0" ]; then
+  if [ ! $(grep -v "T:1:12 :2:2 :3:9" $BBV_OUT | wc -l) == "0" ]; then
 	echo "$THIS_SCRIPT: $BBV_OUT contains unexpected lines."
 	echo "Spike command: "
 	echo $SPIKE_COMMAND
@@ -92,7 +92,7 @@ RISCV_BIN=$RISCV_INSTALL_DIR/$TEST_NAME.riscv
 OBJDUMP_OUT=$BASE_FILENAME.objdump
 riscv64-unknown-elf-objdump -Mnumeric -S $RISCV_BIN > $OBJDUMP_OUT
 
-SPIKE_ALL_OPTS="--isa=rv64gc_H_zba_zbb_zbc_zbs --en_bbv --bb_file $BBV_ARG --simpoint_size 23"
+SPIKE_ALL_OPTS="--isa=rv64gc_H_zba_zbb_zbc_zbs --en_bbv --bb_file $BBV_ARG --simpoint_size 23 --encode_bb_ids"
 export SPIKE_COMMAND="$SPIKE $SPIKE_ALL_OPTS $RISCV_BIN"
 
 
@@ -115,7 +115,7 @@ check_output
 
 
 # Umode only tracing:
-SPIKE_ALL_OPTS="--isa=rv64gc_H_zba_zbb_zbc_zbs --en_bbv --bb_file $BBV_ARG --simpoint_size 15 --bbv_umode_only"
+SPIKE_ALL_OPTS="--isa=rv64gc_H_zba_zbb_zbc_zbs --en_bbv --bb_file $BBV_ARG --simpoint_size 15 --bbv_umode_only --encode_bb_ids"
 export SPIKE_COMMAND="$SPIKE $SPIKE_ALL_OPTS $RISCV_BIN"
 
 
