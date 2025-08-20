@@ -17,3 +17,8 @@ Condor Computing maintains this fork of the public Spike repo:
   * (Tim Scherer)[https://github.com/timscherer]
       * STF regression tests, and other enhancements
       * On behalf of (Condor Computing)[https://condorcomputing.com]
+
+  * (Adam Caughron)[https://github.com/adamcaughron]
+      * STF and BBV tracing; checkpoint save & restore; and other enhancements
+      * (Condor Computing)[https://condorcomputing.com]
+
