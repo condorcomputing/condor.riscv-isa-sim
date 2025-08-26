@@ -199,7 +199,7 @@ struct StfTracer
     //This is always cleared, set in transistion from fast to slow
     _pending_region = false; 
 
-    if(macro_tracing) trace_macro_insn(p,fetch,debug);
+    if(macro_tracing) trace_macro_insn(p,fetch,pc,debug);
     else              trace_count_insn(p,fetch,pc,debug);
   }
 
@@ -277,20 +277,19 @@ struct StfTracer
   // ---------------------------------------------------------------- 
   // ---------------------------------------------------------------- 
   void trace_macro_insn(processor_t *proc,insn_fetch_t &fetch,
-                        std::string debug="")
+                        reg_t pc, std::string debug="")
   {
     auto const state = proc->get_state();
-    auto const PC = state->pc;
 
     // The trace file is not closed here since we support non-contiguous 
     // regions. STOPs while already stopped are ignored
     if(is_stop_macro(fetch.insn.bits()) ) { //&& in_trace_region) {
 
-      info(proc,"trace stop  opc detected 0x%lx\n",PC);
+      info(proc,"trace stop  opc detected 0x%lx\n",pc);
 
       //Optionally include the trace macros from the trace
       if (include_trace_macros && _in_trace_region) {
-        trace_element(proc,fetch,PC,debug);
+        trace_element(proc,fetch,pc,debug);
       }
 
       report_stats(proc,debug);
@@ -312,7 +311,7 @@ struct StfTracer
     // state of the machine on entry to the region.
     if(is_start_macro(fetch.insn.bits())) {
 
-      info(proc,"trace start opc detected 0x%lx\n",PC);
+      info(proc,"trace start opc detected 0x%lx\n",pc);
       report_stats(proc,debug);
 
       if (prog_ppn == -1) {
@@ -331,7 +330,7 @@ struct StfTracer
       }
 
       if((bool)stf_writer == false)  {
-        open_trace(proc,fetch,PC);
+        open_trace(proc,fetch,pc);
       }
 
       record_machine_state(proc);
@@ -343,7 +342,7 @@ struct StfTracer
       }
     }
 
-    if (_in_trace_region) trace_element(proc,fetch,PC,debug);
+    if (_in_trace_region) trace_element(proc,fetch,pc,debug);
   }
 
   // ---------------------------------------------------------------- 
