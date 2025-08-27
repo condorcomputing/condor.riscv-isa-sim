@@ -580,7 +580,7 @@ int main(int argc, char** argv)
   }
 
   // FIXME
-  if (stfhandler->trace_file_name != "" || bb_tracer_options::en_bbv) {
+  if (stfhandler->trace_file_name != "" || bb_tracer_options::en_bbv || stfhandler->stats_file_name != "exe_stats.json") {
     stfhandler->report_stats(s,cfg,exe_start);
   }
 
