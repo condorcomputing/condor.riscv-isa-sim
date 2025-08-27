@@ -4,7 +4,6 @@
 #include <string>
 #include <fstream>
 #include <vector>
-#include <unordered_map>
 #include <stdexcept>
 
 #include "decode.h"
@@ -112,6 +111,7 @@ namespace bb_tracer_options {
     extern uint64_t simpoint_size;
     extern bool bbv_umode_only;
     extern uint64_t warmup_size;
+    extern bool encode_bb_ids;
 
     void set_options(option_parser_t &parser);
 

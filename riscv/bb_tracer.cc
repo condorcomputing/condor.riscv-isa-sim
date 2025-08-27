@@ -67,16 +67,19 @@ void bb_tracer::flush_bb_vector(const uint64_t steps) {
         if (!m_bbv.empty()) {
             m_bb_file << "T";
             for (const auto& ent: m_bbv) {
-                auto it = m_pc2id.find(ent.first);
-                uint64_t id = 0u;
-                if (it == m_pc2id.end()) {
-                    id = m_next_id++;
-                    m_pc2id[ent.first] = id;
+                if (unlikely(bb_tracer_options::encode_bb_ids)) {
+                    auto it = m_pc2id.find(ent.first);
+                    uint64_t id = 0u;
+                    if (it == m_pc2id.end()) {
+                        id = m_next_id++;
+                        m_pc2id[ent.first] = id;
+                    } else {
+                        id = it->second;
+                    }
+                    m_bb_file << ":" << id << ":" << ent.second << " ";
                 } else {
-                    id = it->second;
+                    m_bb_file << ":" << ent.first << ":" << ent.second << " ";
                 }
-
-                m_bb_file << ":" << id << ":" << ent.second << " ";
             }
             m_bb_file << "\n";
             m_bb_file.flush();
@@ -228,6 +231,7 @@ namespace bb_tracer_options {
     uint64_t simpoint_size = 100000000UL;
     bool bbv_umode_only = false;
     uint64_t warmup_size = 0;
+    bool encode_bb_ids = false;
 
     void set_options(option_parser_t &parser) {
         parser.option(0, "en_bbv", 0, [&](const char UNUSED *s) { en_bbv = true; });
@@ -236,6 +240,7 @@ namespace bb_tracer_options {
         parser.option(0, "simpoint_size", 1, [&](const char *s) { simpoint_size = strtoul(s, nullptr, 10); });
         parser.option(0, "bbv_umode_only", 0, [&](const UNUSED char *s) { bbv_umode_only = true; });
         parser.option(0, "warmup_size", 1, [&](const UNUSED char *s) { warmup_size = strtoul(s, nullptr, 10); });
+        parser.option(0, "encode_bb_ids", 0, [&](const UNUSED char *s) { encode_bb_ids = true; });
     }
 
     void bbv_options_help() {
@@ -250,6 +255,7 @@ namespace bb_tracer_options {
         E("  --bbv_umode_only      SimPoint only user-mode instructions [default false]\n");
         E("  --simpoint_size=<n>   SimPoint window for BB collection [default 100,000,000]\n");
         E("  --warmup_size=<n>     Warmup window for BB collection, use with bbv_umode_only.\n");
+        E("  --encode_bb_ids       Use sequeuntial integers for BB IDs, instead of addresses [default false].\n");
         #undef E
     }
 } // bb_tracer_options
