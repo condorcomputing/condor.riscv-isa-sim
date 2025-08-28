@@ -24,6 +24,7 @@
 #include <map>
 #include <chrono>
 #include "../VERSION"
+#include <sysexits.h>
 
 using namespace std::chrono;
 
@@ -613,7 +614,7 @@ int main(int argc, char** argv)
     json j;
     if (!check_file_exists(checkpoint_file.c_str())) {
       std::cerr << "-E checkpoint restore file not found: " << checkpoint_file << std::endl;
-      exit(-1);
+      exit(EX_NOINPUT);
     }
     std::cerr << "Running checkpoint restore from " << checkpoint_file << std::endl;
     std::ifstream in(checkpoint_file);
