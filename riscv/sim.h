@@ -177,7 +177,8 @@ public:
   debug_module_t debug_module;
 
   json checkpoint(std::string tag);
-  void checkpoint_restore(json j);
+  void checkpoint_restore(std::string file);
+  void checkpoint_restore(json j, std::string file_path="");
 };
 
 extern volatile bool ctrlc_pressed;

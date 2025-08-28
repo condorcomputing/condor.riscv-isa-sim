@@ -3,6 +3,7 @@
 #include "json.hpp"
 #include <stdexcept>
 #include <sysexits.h>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -147,6 +148,10 @@ json bus_t::checkpoint(std::string tag) {
 }
 
 void bus_t::checkpoint_restore(json j) {
+  checkpoint_restore(j, std::string(""));
+}
+
+void bus_t::checkpoint_restore(json j, std::string file_path) {
 
   for (auto dev : devices) {
     if (auto devp = dynamic_cast<mem_t*>(dev.second)) {
@@ -156,11 +161,14 @@ void bus_t::checkpoint_restore(json j) {
 
       std::ifstream in(j[key], std::ios::binary);
       if (!in) {
-        std::cerr << "Failed to open " << j[key] << " for reading\n";
-        exit(EX_NOINPUT);
-      } else {
-        devp->checkpoint_restore(in);
+        std::filesystem::path full_path = std::filesystem::path(file_path) / std::filesystem::path(j[key]);
+        in.open(full_path.string(), std::ios::in | std::ios::binary);
+        if (!in) {
+           std::cerr << "Failed to open " << full_path.string() << " for reading\n";
+           exit(EX_NOINPUT);
+        }
       }
+      devp->checkpoint_restore(in);
     } else if (auto devp = dynamic_cast<clint_t*>(dev.second)) {
       std::ostringstream os;
       os << std::hex << dev.first;
