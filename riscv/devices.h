@@ -31,6 +31,7 @@ class bus_t : public abstract_device_t {
   void add_device(reg_t addr, abstract_device_t* dev);
   json checkpoint(std::string tag);
   void checkpoint_restore(json j) override;
+  void checkpoint_restore(json j, std::string file_path="");
 
   std::pair<reg_t, abstract_device_t*> find_device(reg_t addr, size_t len);
 

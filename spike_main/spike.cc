@@ -588,7 +588,9 @@ int main(int argc, char** argv)
     } else {
         in >> j;
     }
-    s.checkpoint_restore(j);
+
+    std::string file_path = std::filesystem::path(checkpoint_file).parent_path().string();
+    s.checkpoint_restore(j, file_path);
   }
 
   auto exe_start = high_resolution_clock::now();

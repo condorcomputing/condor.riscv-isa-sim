@@ -39,7 +39,7 @@ public:
   mmu_t* debug_mmu;  // debug port into main memory, for use by debug_module
 
   virtual json checkpoint(std::string tag) = 0;
-  virtual void checkpoint_restore(json j) = 0;
+  virtual void checkpoint_restore(json j, std::string file_path="") = 0;
 };
 
 #endif

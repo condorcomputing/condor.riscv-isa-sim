@@ -512,8 +512,11 @@ json sim_t::checkpoint(std::string tag) {
   return j;
 }
 
-void sim_t::checkpoint_restore(json j) {
-  bus.checkpoint_restore(j["bus"]);
+void sim_t::checkpoint_restore(std::string file) {
+}
+
+void sim_t::checkpoint_restore(json j, std::string file_path) {
+  bus.checkpoint_restore(j["bus"], file_path);
 
   for (size_t i=0; i<procs.size(); i++) {
     procs[i]->checkpoint_restore(j["proc_" + std::to_string(i)]);
