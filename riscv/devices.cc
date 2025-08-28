@@ -2,6 +2,7 @@
 #include "mmu.h"
 #include "json.hpp"
 #include <stdexcept>
+#include <sysexits.h>
 
 using json = nlohmann::json;
 
@@ -72,6 +73,7 @@ json bus_t::checkpoint(std::string tag) {
       std::ofstream out(fname, std::ios::binary);
       if (!out) {
         std::cerr << "Failed to open mem.bin for writing\n";
+        exit(EX_CANTCREAT);
       } else {
         devp->dump(out);
         j["mem_"+ os.str()] = fname;
@@ -112,6 +114,7 @@ void bus_t::checkpoint_restore(json j) {
       std::ifstream in(j[key], std::ios::binary);
       if (!in) {
         std::cerr << "Failed to open " << j[key] << " for reading\n";
+        exit(EX_NOINPUT);
       } else {
         devp->checkpoint_restore(in);
       }
