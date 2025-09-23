@@ -394,6 +394,7 @@ public:
 
   json checkpoint() override;
   void checkpoint_restore(json j) override;
+  static constexpr uint32_t _CHECKPOINT_MACRO = 0x00214033; //xor x0,x2,x2
 
 private:
   const isa_parser_t isa;
@@ -456,8 +457,11 @@ private:
 
   // Track repeated executions for processor_t::disasm()
   uint64_t last_pc, last_bits, executions;
-  void maybe_checkpoint_interval(reg_t pc, reg_t npc, reg_t instret, reg_t steps_remaining);
+  void maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t bits, reg_t instret, reg_t steps_remaining);
   uint64_t checkpoint_interval {0};
+  std::vector<reg_t> checkpoint_instructions;
+  reg_t next_checkpoint_instruction {0};
+  bool checkpoint_macro_enable {false};
 public:
   entropy_source es; // Crypto ISE Entropy source.
 

@@ -78,6 +78,8 @@ public:
   bool                    real_time_clint;
   reg_t                   trigger_count;
   reg_t                   checkpoint_interval {0};
+  bool                    checkpoint_macro_enable {false};
+  std::vector<reg_t>      checkpoint_instructions;
 
   size_t nprocs() const { return hartids.size(); }
   size_t max_hartid() const { return hartids.back(); }
