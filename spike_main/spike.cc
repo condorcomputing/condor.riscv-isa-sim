@@ -496,6 +496,8 @@ int main(int argc, char** argv)
     instructions = strtoull(s, 0, 0);
   });
   parser.option(0, "checkpoint_interval", 1, [&](const char *s){cfg.checkpoint_interval = atoul_safe(s);});
+  parser.option(0, "checkpoint_instruction", 1, [&](const char *s){cfg.checkpoint_instructions.push_back(atoul_safe(s));});
+  parser.option(0, "checkpoint_macro_enable", 0, [&](const char UNUSED *s){cfg.checkpoint_macro_enable = true;});
   parser.option(0, "restore_checkpoint", 1, [&](const char *s){checkpoint_file = s;});
 
   // BBV capture options
@@ -512,7 +514,12 @@ int main(int argc, char** argv)
     htif_args.insert(htif_args.begin(),"--checkpoint-restore");
   }
 
-  if ((checkpoint_file == "" && !*argv1) || !stfhandler->option_checks(cfg, bb_tracer_options::en_bbv)) {
+  if ((checkpoint_file == "" && !*argv1) ||
+    !stfhandler->option_checks(cfg,
+      bb_tracer_options::en_bbv,
+      (cfg.checkpoint_macro_enable || cfg.checkpoint_instructions.size() || cfg.checkpoint_interval)
+    )
+  ) {
     help();
   }
 

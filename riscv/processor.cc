@@ -56,6 +56,8 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
   extension_enable_table(isa.get_extension_table()),
   last_pc(1), executions(1),
   checkpoint_interval(cfg->checkpoint_interval * bb_tracer_options::simpoint_size),
+  checkpoint_instructions(cfg->checkpoint_instructions),
+  checkpoint_macro_enable(cfg->checkpoint_macro_enable),
   TM(cfg->trigger_count)
 {
   VU.p = this;
@@ -86,6 +88,12 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
   set_max_vaddr_bits(0);
   set_impl(IMPL_MMU_ASID, true);
   set_impl(IMPL_MMU_VMID, true);
+
+  if (checkpoint_instructions.size()) {
+    std::sort(checkpoint_instructions.begin(), checkpoint_instructions.end(), std::greater<reg_t>());
+    next_checkpoint_instruction = checkpoint_instructions.back();
+    checkpoint_instructions.pop_back();
+  }
 
   reset();
 

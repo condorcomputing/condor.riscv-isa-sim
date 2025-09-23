@@ -415,10 +415,10 @@ struct StfHandler
   // -------------------------------------------------------------------------
   // At present checks are simple
   // -------------------------------------------------------------------------
-  bool option_checks(cfg_t &cfg, bool bbv_en) {
+  bool option_checks(cfg_t &cfg, bool bbv_en, bool checkpoint_enable) {
 
     // if bbv is enabled, create at least one tracer instance for stat generation.
-    if (tracer_cfg_started || stf_trace_opts_ooo || (bbv_en && tracers.size()==0)) {
+    if (tracer_cfg_started || stf_trace_opts_ooo || (bbv_en && tracers.size()==0) || checkpoint_enable) {
       create_tracer();
       tracer_cfg_started = false;
     }

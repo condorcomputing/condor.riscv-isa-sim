@@ -158,10 +158,17 @@ inline void processor_t::update_histogram(reg_t pc)
     pc_histogram[pc]++;
 }
 
-void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, reg_t instret, reg_t steps_remaining) {
-   uint64_t executed_insns = stfhandler->get_executed_roi_umode_insns();
+void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, reg_t instret, reg_t steps_remaining) {
+   if (!(checkpoint_interval || next_checkpoint_instruction || checkpoint_macro_enable)) {
+     return;
+   }
 
-   if (executed_insns && checkpoint_interval && (executed_insns % checkpoint_interval == 0)) {
+   uint64_t executed_roi_umode_insns = stfhandler->get_executed_roi_umode_insns();
+
+   if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
+       (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
+       (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0))) {
+
      this->steps_remaining = steps_remaining;
 
      reg_t stash_minstret =  state.minstret->val;
@@ -174,25 +181,38 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, reg_t instret, 
      reg_t stash_pc = get_state()->pc;
      get_state()->pc = npc;
 
-     reg_t interval_num = std::ceil(executed_insns / bb_tracer_options::simpoint_size);
+     std::string tag = std::to_string(get_executed_insns());
 
-     std::string tag = std::to_string(interval_num) + "_" + std::to_string(get_executed_insns());
+     if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
+         (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction))) {
+        sim->checkpoint(tag);
+        if (checkpoint_instructions.size()) {
+          next_checkpoint_instruction = checkpoint_instructions.back();
+          checkpoint_instructions.pop_back();
+        } else {
+          next_checkpoint_instruction = 0;
+        }
+     }
 
-     sim->checkpoint(tag);
+     if (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0)) {
+        reg_t interval_num = std::ceil(executed_roi_umode_insns / bb_tracer_options::simpoint_size);
+        tag = std::to_string(interval_num) + "_" + tag;
+        sim->checkpoint(tag);
+     }
 
      get_state()->pc = stash_pc; // or pc?
      state.minstret->val = stash_minstret;
      state.mcycle->val = stash_mcycle;
    }
 
-   if (executed_insns && checkpoint_interval && !bb_tracer_options::en_bbv) {
-      if (executed_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
+   if (checkpoint_interval && executed_roi_umode_insns && !bb_tracer_options::en_bbv) {
+      if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
         m_bb_tracer.log_simpoint_warmup_insn_track(pc);
-      } else if (executed_insns % bb_tracer_options::simpoint_size == 1) {
+      } else if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == 1) {
         m_bb_tracer.log_simpoint_start_track(pc);
       }
 
-      if (executed_insns % checkpoint_interval == 0) {
+      if (executed_roi_umode_insns % checkpoint_interval == 0) {
         m_bb_tracer.log_simpoint_end_insn_track(pc);
       }
    }
@@ -350,7 +370,7 @@ void processor_t::step(size_t n)
           ppc = pc;
           pc = execute_insn_logged(this, &state, pc, fetch);
           if (pc != PC_SERIALIZE_BEFORE) {
-            maybe_checkpoint_interval(ppc, pc, instret, (n)-(instret+1));
+            maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, (n)-(instret+1));
             stfhandler->incr_executed_instructions(this);
           }
           advance_pc();
@@ -391,7 +411,7 @@ void processor_t::step(size_t n)
             _mmu->icache[_mmu->icache_index(pc)].next = ic_entry;
             if (ic_entry->tag != new_pc) {
               if (new_pc != PC_SERIALIZE_BEFORE) {
-                maybe_checkpoint_interval(pc, new_pc, instret+1, (n)-(instret+1));
+                maybe_checkpoint_interval(pc, new_pc, fetch.insn.bits(), instret+1, (n)-(instret+1));
                 stfhandler->incr_executed_instructions(this);
 	           }
               pc = new_pc;
@@ -399,7 +419,7 @@ void processor_t::step(size_t n)
               break;
             }
           }
-          maybe_checkpoint_interval(pc, new_pc, instret+1, (n)-(instret+1));
+          maybe_checkpoint_interval(pc, new_pc, fetch.insn.bits(), instret+1, (n)-(instret+1));
           state.pc = pc = ic_entry->tag;
           stfhandler->incr_executed_instructions(this);
         }
@@ -461,7 +481,7 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
-      maybe_checkpoint_interval(ppc, pc, instret, 0);
+      maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, 0);
       stfhandler->incr_executed_instructions(this);
       in_wfi = true;
     }
