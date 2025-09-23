@@ -81,6 +81,8 @@ public:
   reg_t                   cache_blocksz;
   std::optional<abstract_sim_if_t*> external_simulator;
   reg_t                   checkpoint_interval {0};
+  bool                    checkpoint_macro_enable {false};
+  std::vector<reg_t>      checkpoint_instructions;
 
   size_t nprocs() const { return hartids.size(); }
   size_t max_hartid() const { return hartids.back(); }
