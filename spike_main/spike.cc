@@ -95,7 +95,16 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-abstractauto  Debug module won't support the abstractauto register\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
   fprintf(stderr, "  --instructions=<n>    Stop after n instructions\n");
-  fprintf(stderr, "  --restore_checkpoint=<file>      Restore checkpoint from <file>\n");
+  fprintf(stderr, "  ------------------------------------------------------------------------------\n");
+  fprintf(stderr, "  Checkpoint save and restore options\n");
+  fprintf(stderr, "  ------------------------------------------------------------------------------\n");
+  fprintf(stderr, "  --checkpoint_instruction=<n>   Save checkpoint after executing instruction n.\n");
+  fprintf(stderr, "                                    (May be specified multiple times.)\n");
+  fprintf(stderr, "  --checkpoint_macro_enable      Save checkpoint after executing the checkpoint\n");
+  fprintf(stderr, "                                    macro instruction (xor x0, x2, x2).\n");
+  fprintf(stderr, "  --checkpoint_interval=<n>      Save checkpoints at periodic simpoint interval boundaries.\n");
+  fprintf(stderr, "                                    (Use with \"--simpoint_size\".)\n");
+  fprintf(stderr, "  --restore_checkpoint=<file>    Restore checkpoint from <file>.\n");
 
   bb_tracer_options::bbv_options_help();
   stfhandler->stf_help();
