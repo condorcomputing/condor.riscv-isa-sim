@@ -172,6 +172,7 @@ public:
   debug_module_t debug_module;
 
   json checkpoint(std::string tag);
+  void request_async_checkpoint();
   void checkpoint_restore(std::string file);
   void checkpoint_restore(json j, std::string file_path="");
 };

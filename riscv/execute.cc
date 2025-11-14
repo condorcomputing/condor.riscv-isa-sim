@@ -159,7 +159,7 @@ inline void processor_t::update_histogram(reg_t pc)
 }
 
 void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, reg_t instret, reg_t steps_remaining) {
-   if (!(checkpoint_interval || next_checkpoint_instruction || checkpoint_macro_enable)) {
+   if (!(checkpoint_interval || next_checkpoint_instruction || checkpoint_macro_enable || async_checkpoint_requested)) {
      return;
    }
 
@@ -167,7 +167,8 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
 
    if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
        (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
-       (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0))) {
+       (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0)) ||
+       async_checkpoint_requested) {
 
      this->steps_remaining = steps_remaining;
 
@@ -184,9 +185,17 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
      std::string tag = std::to_string(get_executed_insns());
 
      if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
-         (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction))) {
+         (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
+         async_checkpoint_requested) {
+
+        if (async_checkpoint_requested) {
+          tag = "async_" + tag;
+          async_checkpoint_requested = false;
+        }
+
         sim->checkpoint(tag);
-        if (checkpoint_instructions.size()) {
+
+        if ((get_executed_insns() == next_checkpoint_instruction) && (checkpoint_instructions.size())) {
           next_checkpoint_instruction = checkpoint_instructions.back();
           checkpoint_instructions.pop_back();
         } else {

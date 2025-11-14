@@ -25,12 +25,19 @@
 using json = nlohmann::json;
 
 volatile bool ctrlc_pressed = false;
+extern std::unique_ptr<sim_t> sim_p;
 static void handle_signal(int sig)
 {
   if (ctrlc_pressed)
     exit(-1);
   ctrlc_pressed = true;
   signal(sig, &handle_signal);
+}
+
+static void handle_usr1_signal(int sig)
+{
+  sim_p->request_async_checkpoint();
+  signal(sig, &handle_usr1_signal);
 }
 
 const size_t sim_t::INTERLEAVE;
@@ -66,6 +73,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     debug_module(this, dm_config)
 {
   signal(SIGINT, &handle_signal);
+  signal(SIGUSR1, &handle_usr1_signal);
 
   sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
@@ -437,8 +445,16 @@ void sim_t::idle()
   if (done())
     return;
 
-  if (debug || ctrlc_pressed)
+  if (debug || ctrlc_pressed) {
+    if (ctrlc_pressed) {
+       if (cfg->exit_on_sigint) {
+         std::cerr << "In sim_t::idle(), and ctrlc_pressed is true. Exit on sigint is set. Exiting." << std::endl;
+         exit(-1);
+       }
+       std::cerr << "In sim_t::idle(), and ctrlc_pressed is true. Going interactive." << std::endl;
+    }
     interactive();
+  }
   else {
     if (checkpoint_restored) {
       step(steps_remaining);
@@ -510,6 +526,12 @@ json sim_t::checkpoint(std::string tag) {
   }
 
   return j;
+}
+
+void sim_t::request_async_checkpoint() {
+  if (procs.size()) {
+    procs[0]->request_async_checkpoint();
+  }
 }
 
 void sim_t::checkpoint_restore(std::string file) {
