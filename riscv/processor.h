@@ -384,6 +384,8 @@ public:
   void checkpoint_restore(json j) override;
   static constexpr uint32_t _CHECKPOINT_MACRO = 0x00214033; //xor x0,x2,x2
 
+  void request_async_checkpoint() {async_checkpoint_requested = true;}
+
 private:
   const isa_parser_t isa;
   const cfg_t * const cfg;
@@ -447,6 +449,7 @@ private:
   std::vector<reg_t> checkpoint_instructions;
   reg_t next_checkpoint_instruction {0};
   bool checkpoint_macro_enable {false};
+  bool async_checkpoint_requested{false};
 public:
   entropy_source es; // Crypto ISE Entropy source.
 
