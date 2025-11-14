@@ -28,6 +28,8 @@
 
 using namespace std::chrono;
 
+std::unique_ptr<sim_t> sim_p;
+
 static void help(int exit_code = 1)
 {
   fprintf(stderr, "Spike RISC-V ISA Simulator " SPIKE_VERSION "\n\n");
@@ -590,12 +592,13 @@ int main(int argc, char** argv)
    if (dtb_enabled==false) {    std::cerr << "--dtb-discovery option is not compatible with --disable-dtb"<<std::endl;  exit(1);}
   }
 
-
-  sim_t s(&cfg, halted,
+  sim_p = std::make_unique<sim_t>(&cfg, halted,
       mems, plugin_device_factories, dtb_discovery, htif_args, dm_config, log_path, dtb_enabled, dtb_file,
       socket,
       cmd_file,
       instructions);
+  sim_t& s = *sim_p;
+
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(
       new jtag_dtm_t(&s.debug_module, dmi_rti));
