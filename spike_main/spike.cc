@@ -498,6 +498,8 @@ int main(int argc, char** argv)
   if (checkpoint_file != "") {
     htif_args.insert(htif_args.begin(),"true");
     htif_args.insert(htif_args.begin(),"--checkpoint-restore");
+
+    bb_tracer_options::checkpoint_restore = true;
   }
 
   if ((checkpoint_file == "" && !*argv1) ||
@@ -559,6 +561,7 @@ int main(int argc, char** argv)
     }
     cfg.hartids = default_hartids;
   }
+
 
   sim_p = std::make_unique<sim_t>(&cfg, halted,
       mems, plugin_device_factories, htif_args, dm_config, log_path, dtb_enabled, dtb_file,
