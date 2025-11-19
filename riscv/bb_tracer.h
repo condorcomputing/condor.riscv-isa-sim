@@ -43,6 +43,25 @@ struct instr_track_t{
     uint64_t roi_instr_count{0};
     uint64_t roi_umode_instr_count{0};
     reg_t pc{0};
+
+   json checkpoint() {
+      json j;
+      j["total_instr_count"] = total_instr_count;
+      j["total_umode_instr_count"] = total_umode_instr_count;
+      j["roi_instr_count"] = roi_instr_count;
+      j["roi_umode_instr_count"] = roi_umode_instr_count;
+      j["pc"] = pc;
+
+      return j;
+   }
+
+   void checkpoint_restore(json j) {
+      total_instr_count = j["total_instr_count"];
+      total_umode_instr_count = j["total_umode_instr_count"];
+      roi_instr_count = j["roi_instr_count"];
+      roi_umode_instr_count = j["roi_umode_instr_count"];
+      pc = j["pc"];
+   }
 };
 
 class bb_tracer {
@@ -113,6 +132,11 @@ private:
     reg_t m_ppn{0};
     uint64_t m_warmup_size{0};
     uint64_t flush_instr_cnt{0};
+    uint64_t instr_cnt{0};
+    bool checkpoint_restored{false};
+
+    std::vector<std::string> bbv_lines;
+    std::vector<std::string> bbv_tracks;
 };
 
 namespace bb_tracer_options {
@@ -124,6 +148,7 @@ namespace bb_tracer_options {
     extern uint64_t start_interval;
     extern uint64_t max_intervals;
     extern bool encode_bb_ids;
+    extern bool checkpoint_restore;
 
     void set_options(option_parser_t &parser);
 

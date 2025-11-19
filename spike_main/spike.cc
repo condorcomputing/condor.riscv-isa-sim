@@ -525,6 +525,8 @@ int main(int argc, char** argv)
   if (checkpoint_file != "") {
     htif_args.insert(htif_args.begin(),"true");
     htif_args.insert(htif_args.begin(),"--checkpoint-restore");
+
+    bb_tracer_options::checkpoint_restore = true;
   }
 
   if ((checkpoint_file == "" && !*argv1) ||
