@@ -253,10 +253,6 @@ struct StfTracer
         std::cerr << "-W: First instruction of trace capture is NOT the trace workload process" << std::endl;
       }
 
-      if(_trace_memory_records) {
-        proc->get_mmu()->flush_tlb();
-      }
-
       if((bool)stf_writer == false)  {
         open_trace(proc,fetch,pc);
       }
