@@ -343,10 +343,12 @@ void bb_tracer::checkpoint_restore(json j) {
 
   for (auto s : bbv_lines) {
     m_bb_file << s;
+    m_bb_file.flush();
   }
 
   for (auto s : bbv_tracks) {
     m_bb_tracks_file << s;
+    m_bb_tracks_file.flush();
   }
 
   checkpoint_restored = true;
