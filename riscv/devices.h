@@ -269,9 +269,10 @@ class ns16550_t : public abstract_device_t {
     json j;
 
     std::vector<uint8_t> _rxq;
-    while (!rx_queue.empty()) {
-       _rxq.push_back(rx_queue.front());
-       rx_queue.pop();
+    std::queue<uint8_t> rx_queue_copy = rx_queue;
+    while (!rx_queue_copy.empty()) {
+       _rxq.push_back(rx_queue_copy.front());
+       rx_queue_copy.pop();
     }
     j["rx_queue"] = _rxq;
 

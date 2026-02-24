@@ -264,6 +264,7 @@ static inline reg_t execute_insn_logged(processor_t* p, state_t* state, reg_t pc
       }
      }
   } catch (wait_for_interrupt_t &t) {
+      stfhandler->trace_insn(p,fetch,pc,npc,"SLOW LOOP");
       if (p->get_log_commits_enabled()) {
         commit_log_print_insn(p, pc, fetch.insn);
       }
@@ -330,6 +331,7 @@ void processor_t::step(size_t n)
       state.v_changed = false;
     } else { checkpoint_restored = false; }
     insn_fetch_t fetch;
+
 
     #define advance_pc() \
       if (unlikely(invalid_pc(pc))) { \
@@ -500,8 +502,12 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
-      maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, 0);
-      stfhandler->incr_executed_instructions(this);
+
+      if (!in_wfi) {
+         in_wfi = true;
+         maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, 0);
+         stfhandler->incr_executed_instructions(this);
+      }
       in_wfi = true;
     }
     catch(stf_trace_complete &e) {
