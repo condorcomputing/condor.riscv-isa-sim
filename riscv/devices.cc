@@ -130,8 +130,13 @@ json bus_t::checkpoint(std::string tag) {
       std::string key = "plic_" + os.str();
 
       j[key] = devp->checkpoint();
-    } else if (dynamic_cast<ns16550_t*>(dev.second)      ||
-               dynamic_cast<debug_module_t*>(dev.second) ||
+    } else if (auto devp = dynamic_cast<ns16550_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "ns16550_" + os.str();
+
+      j[key] = devp->checkpoint();
+    } else if (dynamic_cast<debug_module_t*>(dev.second) ||
                dynamic_cast<rom_device_t*>(dev.second)   ||
                dynamic_cast<abstract_mem_t*>(dev.second)) {
       // checkpoint not supported
@@ -177,8 +182,15 @@ void bus_t::checkpoint_restore(json j, std::string file_path) {
       std::string key = "plic_" + os.str();
 
       devp->checkpoint_restore(j[key]);
+    } else if (auto devp = dynamic_cast<ns16550_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "ns16550_" + os.str();
+
+      if (j.contains(key)) {
+        devp->checkpoint_restore(j[key]);
+      }
     } else if (dynamic_cast<debug_module_t*>(dev.second) ||
-               dynamic_cast<ns16550_t*>(dev.second)      ||
                dynamic_cast<rom_device_t*>(dev.second)   ||
                dynamic_cast<abstract_mem_t*>(dev.second)) {
       // checkpoint not supported

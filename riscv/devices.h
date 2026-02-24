@@ -263,6 +263,53 @@ class ns16550_t : public abstract_device_t {
   int backoff_counter;
   static const int MAX_BACKOFF = 16;
   bool disable_stdin;
+
+ public:
+  json checkpoint() {
+    json j;
+
+    std::vector<uint8_t> _rxq;
+    while (!rx_queue.empty()) {
+       _rxq.push_back(rx_queue.front());
+       rx_queue.pop();
+    }
+    j["rx_queue"] = _rxq;
+
+    j["dll"] = dll;
+    j["dlm"] = dlm;
+    j["iir"] = iir;
+    j["ier"] = ier;
+    j["fcr"] = fcr;
+    j["lcr"] = lcr;
+    j["mcr"] = mcr;
+    j["lsr"] = lsr;
+    j["msr"] = msr;
+    j["scr"] = scr;
+    j["backoff_counter"] = backoff_counter;
+
+    return j;
+  }
+
+  void checkpoint_restore(json j) {
+    std::vector<uint8_t> _rxq = j["rx_queue"];
+
+    for (const auto elem : _rxq) {
+       rx_queue.push(elem);
+    }
+
+    dll = j["dll"];
+    dll = j["dll"];
+    dlm = j["dlm"];
+    iir = j["iir"];
+    ier = j["ier"];
+    fcr = j["fcr"];
+    lcr = j["lcr"];
+    mcr = j["mcr"];
+    lsr = j["lsr"];
+    msr = j["msr"];
+    scr = j["scr"];
+    backoff_counter = j["backoff_counter"];
+  }
 };
 
 template<typename T>

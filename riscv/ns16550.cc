@@ -86,6 +86,7 @@ ns16550_t::ns16550_t(abstract_interrupt_controller_t *intctrl,
   dll = 0x0C;
   mcr = UART_MCR_OUT2;
   scr = 0;
+  dlm = 0;
 }
 
 void ns16550_t::update_interrupt(void)
