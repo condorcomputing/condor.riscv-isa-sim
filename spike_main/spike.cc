@@ -94,6 +94,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
   fprintf(stderr, "  --instructions=<n>    Stop after n instructions\n");
   fprintf(stderr, "  --exit_on_sigint      Exit on sigint/ctl-c (rather than going interactive.)\n");
+  fprintf(stderr, "  --disable_stdin       UART device will not read from stdin\n");
   fprintf(stderr, "  ------------------------------------------------------------------------------\n");
   fprintf(stderr, "  Checkpoint save and restore options\n");
   fprintf(stderr, "  ------------------------------------------------------------------------------\n");
@@ -481,6 +482,7 @@ int main(int argc, char** argv)
     instructions = strtoull(s, 0, 0);
   });
   parser.option(0, "exit_on_sigint", 0, [&](const char *s){cfg.exit_on_sigint = true;});
+  parser.option(0, "disable_stdin", 0, [&](const char UNUSED *s){cfg.disable_stdin = true;});
   parser.option(0, "checkpoint_interval", 1, [&](const char *s){cfg.checkpoint_interval = atoul_safe(s);});
   parser.option(0, "checkpoint_instruction", 1, [&](const char *s){cfg.checkpoint_instructions.push_back(atoul_safe(s));});
   parser.option(0, "checkpoint_macro_enable", 0, [&](const char UNUSED *s){cfg.checkpoint_macro_enable = true;});

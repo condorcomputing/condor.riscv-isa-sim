@@ -235,7 +235,7 @@ class plic_t : public abstract_device_t, public abstract_interrupt_controller_t 
 class ns16550_t : public abstract_device_t {
  public:
   ns16550_t(abstract_interrupt_controller_t *intctrl,
-            uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width);
+            uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width, bool disable_stdin);
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
   void tick(reg_t rtc_ticks) override;
@@ -262,6 +262,7 @@ class ns16550_t : public abstract_device_t {
 
   int backoff_counter;
   static const int MAX_BACKOFF = 16;
+  bool disable_stdin;
 };
 
 template<typename T>

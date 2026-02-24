@@ -74,8 +74,8 @@
 #define UART_SCR                7 /* I/O: Scratch Register */
 
 ns16550_t::ns16550_t(abstract_interrupt_controller_t *intctrl,
-                     uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width)
-  : intctrl(intctrl), interrupt_id(interrupt_id), reg_shift(reg_shift), reg_io_width(reg_io_width), backoff_counter(0)
+                     uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width, bool disable_stdin)
+  : intctrl(intctrl), interrupt_id(interrupt_id), reg_shift(reg_shift), reg_io_width(reg_io_width), backoff_counter(0), disable_stdin(disable_stdin)
 {
   ier = 0;
   iir = UART_IIR_NO_INT;
@@ -315,7 +315,7 @@ void ns16550_t::tick(reg_t UNUSED rtc_ticks)
     return;
   }
 
-  int rc = canonical_terminal_t::read();
+  int rc = disable_stdin ? -1 : canonical_terminal_t::read();
   if (rc < 0) {
     backoff_counter = 1;
     return;
@@ -348,14 +348,16 @@ std::string ns16550_generate_dts(const sim_t* sim, const std::vector<std::string
   return s.str();
 }
 
-ns16550_t* ns16550_parse_from_fdt(const void* fdt, const sim_t* sim, reg_t* base, const std::vector<std::string>& sargs UNUSED)
+ns16550_t* ns16550_parse_from_fdt(const void* fdt, const sim_t* sim, reg_t* base, const std::vector<std::string>& sargs)
 {
   uint32_t ns16550_shift, ns16550_io_width, ns16550_int_id;
   if (fdt_parse_ns16550(fdt, base,
                         &ns16550_shift, &ns16550_io_width, &ns16550_int_id,
                         "ns16550a") == 0) {
     abstract_interrupt_controller_t* intctrl = sim->get_intctrl();
-    return new ns16550_t(intctrl, ns16550_int_id, ns16550_shift, ns16550_io_width);
+    auto it = std::find(sargs.begin(), sargs.end(), "disable_stdin");
+    bool disable_stdin = it != sargs.end();
+    return new ns16550_t(intctrl, ns16550_int_id, ns16550_shift, ns16550_io_width, disable_stdin);
   } else {
     return nullptr;
   }

@@ -128,10 +128,15 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   // that's not bus-accessible), but it should handle the normal use cases. In
   // particular, the default device tree configuration that you get without
   // setting the dtb_file argument has one.
+  std::vector<std::string> ns16550_args;
+  if (cfg->disable_stdin) {
+     ns16550_args.push_back("disable_stdin");
+  }
+
   std::vector<device_factory_sargs_t> device_factories = {
     {clint_factory, {}},
     {plic_factory, {}},
-    {ns16550_factory, {}}};
+    {ns16550_factory, ns16550_args}};
   device_factories.insert(device_factories.end(),
                           plugin_device_factories.begin(),
                           plugin_device_factories.end());
