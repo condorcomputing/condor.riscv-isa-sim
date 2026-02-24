@@ -1090,6 +1090,7 @@ json processor_t::checkpoint() {
   j["steps_remaining"] = steps_remaining;
   j["stfhandler"] = stfhandler->checkpoint();
   j["bb_tracer"] = m_bb_tracer.checkpoint();
+  j["in_wfi"] = in_wfi;
 
   return j;
 }
@@ -1099,6 +1100,10 @@ void processor_t::checkpoint_restore(json j) {
   stfhandler->checkpoint_restore(j["stfhandler"]);
   if (j.contains("bb_tracer")) {
     m_bb_tracer.checkpoint_restore(j["bb_tracer"]);
+  }
+
+  if (j.contains("in_wfi")) {
+     in_wfi = j["in_wfi"];
   }
 
   // since the checkpoint is created before the instruction

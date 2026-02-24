@@ -257,6 +257,7 @@ class wait_for_interrupt_t {};
 
 #define wfi() \
   do { set_pc_and_serialize(npc); \
+       STATE.taken_branch_flag = false; \
        throw wait_for_interrupt_t(); \
      } while (0)
 
