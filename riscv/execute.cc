@@ -164,6 +164,19 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
    }
 
    uint64_t executed_roi_umode_insns = stfhandler->get_executed_roi_umode_insns();
+   //uint64_t executed_roi_umode_insns = stfhandler->get_executed_insns();
+
+   if (checkpoint_interval && executed_roi_umode_insns && !bb_tracer_options::en_bbv) {
+      if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
+        m_bb_tracer.log_simpoint_warmup_insn_track(pc);
+      } else if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == 1) {
+        m_bb_tracer.log_simpoint_start_track(pc);
+      }
+
+      if (executed_roi_umode_insns % checkpoint_interval == 0) {
+        m_bb_tracer.log_simpoint_end_insn_track(pc);
+      }
+   }
 
    if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
        (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
@@ -212,18 +225,6 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
      get_state()->pc = stash_pc; // or pc?
      state.minstret->val = stash_minstret;
      state.mcycle->val = stash_mcycle;
-   }
-
-   if (checkpoint_interval && executed_roi_umode_insns && !bb_tracer_options::en_bbv) {
-      if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
-        m_bb_tracer.log_simpoint_warmup_insn_track(pc);
-      } else if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == 1) {
-        m_bb_tracer.log_simpoint_start_track(pc);
-      }
-
-      if (executed_roi_umode_insns % checkpoint_interval == 0) {
-        m_bb_tracer.log_simpoint_end_insn_track(pc);
-      }
    }
 }
 
