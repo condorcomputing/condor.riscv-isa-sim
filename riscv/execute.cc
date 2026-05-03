@@ -170,11 +170,20 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
     commit_log_stash_privilege(p);
   }
 
+  reg_t npc_or_serialize_flag;
   reg_t npc;
 
   try {
-    npc = fetch.func(p, fetch.insn, pc);
-    if (npc != PC_SERIALIZE_BEFORE) {
+    npc_or_serialize_flag = fetch.func(p, fetch.insn, pc);
+
+    if (npc_or_serialize_flag != PC_SERIALIZE_BEFORE) {
+      // "next_pc" is in state.pc; see decode_macros.h
+      if (npc_or_serialize_flag == PC_SERIALIZE_AFTER) {
+        npc = p->get_state()->pc;
+      } else {
+        npc = npc_or_serialize_flag;
+      }
+
       stfhandler->trace_insn(p,fetch,pc,npc,"SLOW LOOP");
       p->get_bb_tracer().simpoint_step(1u, pc);
       if (p->get_log_commits_enabled()) {
@@ -202,7 +211,7 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
   }
   p->update_histogram(pc);
 
-  return npc;
+  return npc_or_serialize_flag;
 }
 
 bool processor_t::slow_path()
