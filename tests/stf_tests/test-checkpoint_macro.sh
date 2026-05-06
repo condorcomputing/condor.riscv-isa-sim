@@ -2,7 +2,7 @@
 
 source test_common.sh
 
-TRACE_DUMP=/data/tools/bin/stf_dump
+TRACE_DUMP=stf_dump
 
 if [ -n "$2" ]; then
     testname_basic=$2
