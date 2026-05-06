@@ -900,7 +900,7 @@ void processor_t::build_opcode_map()
   const size_t N = std::size(opcode_map);
 
   auto build_one = [&](const insn_desc_t& desc) {
-    auto func = desc.func(xlen, rve, log_commits_enabled);
+    auto func = desc.func(xlen, rve, get_log_or_stf_commits_enabled());
     if (!zca && insn_length(desc.match) % 4)
       func = &::illegal_instruction;
 
