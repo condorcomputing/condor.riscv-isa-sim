@@ -658,6 +658,17 @@ INSTALL_PROGRAM
 STOW_PREFIX
 STOW_ROOT
 enable_stow
+STF_SPIKE_VERSION_PATCH
+STF_SPIKE_VERSION_MINOR
+STF_SPIKE_VERSION_MAJOR
+DHRYSTONE_INSTALL_BIN
+DHRYSTONE_PATH
+STF_LIB_PATH
+GIT_SHA
+MAVIS_GIT_SHA
+STF_LIB_GIT_SHA
+STF_SPIKE_GIT_SHA
+RISCV_GCC
 DTC
 RANLIB
 AR
@@ -671,6 +682,8 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
+EXTERNAL_STF_LIB_PATH
+EXTERNAL_MAVIS_PATH
 host_os
 host_vendor
 host_cpu
@@ -721,6 +734,8 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+with_mavis
+with_stf_lib
 enable_stow
 enable_optional_subprojects
 with_boost
@@ -1374,6 +1389,8 @@ Optional Features:
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-mavis=PATH       Use external MAVIS installation at PATH
+  --with-stf-lib=PATH     Use external STF_LIB installation at PATH
   --with-boost[=ARG]      use Boost library from a standard location
                           (ARG=yes), from the specified location (ARG=<path>),
                           or disable it (ARG=no) [ARG=yes]
@@ -2916,6 +2933,25 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
 
+#-------------------------------------------------------------------------
+# Handle --with-mavis
+#-------------------------------------------------------------------------
+
+# Check whether --with-mavis was given.
+if test ${with_mavis+y}
+then :
+  withval=$with_mavis; external_mavis_path="$withval"
+else $as_nop
+  external_mavis_path=""
+
+fi
+
+EXTERNAL_MAVIS_PATH=$external_mavis_path
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: DEBUG: external_mavis_path = $external_mavis_path" >&5
+printf "%s\n" "$as_me: DEBUG: external_mavis_path = $external_mavis_path" >&6;}
+
 # ===========================================================================
 #    https://www.gnu.org/software/autoconf-archive/ax_require_defined.html
 # ===========================================================================
@@ -3219,6 +3255,22 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 #serial 23
 
 
+
+
+#-------------------------------------------------------------------------
+# Handle --with-stf-lib
+#-------------------------------------------------------------------------
+
+# Check whether --with-stf-lib was given.
+if test ${with_stf_lib+y}
+then :
+  withval=$with_stf_lib; external_stf_lib_path="$withval"
+else $as_nop
+  external_stf_lib_path=""
+
+fi
+
+EXTERNAL_STF_LIB_PATH=$external_stf_lib_path
 
 
 #-------------------------------------------------------------------------
@@ -5173,7 +5225,256 @@ printf "%s\n" "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
 
 
 #-------------------------------------------------------------------------
-# MCPPBS specific program checks
+# Check for riscv64-unknown-elf-gcc
+#-------------------------------------------------------------------------
+
+# Extract the first word of "riscv64-unknown-elf-gcc", so it can be a program name with args.
+set dummy riscv64-unknown-elf-gcc; ac_word=$2
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+printf %s "checking for $ac_word... " >&6; }
+if test ${ac_cv_path_RISCV_GCC+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  case $RISCV_GCC in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_RISCV_GCC="$RISCV_GCC" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  case $as_dir in #(((
+    '') as_dir=./ ;;
+    */) ;;
+    *) as_dir=$as_dir/ ;;
+  esac
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir$ac_word$ac_exec_ext"; then
+    ac_cv_path_RISCV_GCC="$as_dir$ac_word$ac_exec_ext"
+    printf "%s\n" "$as_me:${as_lineno-$LINENO}: found $as_dir$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_RISCV_GCC" && ac_cv_path_RISCV_GCC="no"
+  ;;
+esac
+fi
+RISCV_GCC=$ac_cv_path_RISCV_GCC
+if test -n "$RISCV_GCC"; then
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $RISCV_GCC" >&5
+printf "%s\n" "$RISCV_GCC" >&6; }
+else
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+fi
+
+
+
+if test "x$RISCV_GCC" = "xno"; then
+    as_fn_error $? "riscv64-unknown-elf-gcc not found in PATH. Please install the RISC-V toolchain and ensure it is accessible." "$LINENO" 5
+else
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Found riscv64-unknown-elf-gcc: $RISCV_GCC" >&5
+printf "%s\n" "$as_me: Found riscv64-unknown-elf-gcc: $RISCV_GCC" >&6;}
+fi
+
+#-------------------------------------------------------------------------
+# Check for the stf_lib submodule and extract Git SHA
+#-------------------------------------------------------------------------
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stf_lib submodule" >&5
+printf %s "checking for stf_lib submodule... " >&6; }
+
+if test -d "${srcdir}/stf_lib" && test -f "${srcdir}/stf_lib/.git"; then
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found" >&5
+printf "%s\n" "found" >&6; }
+else
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: stf_lib submodule not found or incomplete. Initializing and updating..." >&5
+printf "%s\n" "$as_me: stf_lib submodule not found or incomplete. Initializing and updating..." >&6;}
+    if ! (cd "${srcdir}" && git submodule update --init --recursive); then
+        as_fn_error $? "Failed to initialize and update stf_lib submodule. Ensure git is available and the submodule is correctly configured." "$LINENO" 5
+    fi
+fi
+
+# Extract Git SHA for STF_SPIKE and stf_lib
+STF_SPIKE_GIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+STF_SPIKE_GIT_SHA=$STF_SPIKE_GIT_SHA
+
+
+if test -d "${srcdir}/stf_lib"; then
+    STF_LIB_GIT_SHA=$(git -C ${srcdir}/stf_lib rev-parse HEAD 2>/dev/null || echo "unknown")
+else
+    STF_LIB_GIT_SHA="unknown"
+fi
+STF_LIB_GIT_SHA=$STF_LIB_GIT_SHA
+
+
+#-------------------------------------------------------------------------
+#-------------------------------------------------------------------------
+if test "x$external_mavis_path" = "x"
+then :
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for jn.mavis submodule" >&5
+printf %s "checking for jn.mavis submodule... " >&6; }
+  if test -d "${srcdir}/jn.mavis" && test -f "${srcdir}/jn.mavis/.git"; then
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found" >&5
+printf "%s\n" "found" >&6; }
+  else
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: jn.mavis submodule not found or incomplete. Initializing and updating..." >&5
+printf "%s\n" "$as_me: jn.mavis submodule not found or incomplete. Initializing and updating..." >&6;}
+      if ! (cd "${srcdir}" && git submodule update --init --recursive); then
+          as_fn_error $? "Failed to initialize and update jn.mavis submodule." "$LINENO" 5
+      fi
+  fi
+
+  MAVIS_GIT_SHA=$(git -C ${srcdir}/jn.mavis rev-parse HEAD 2>/dev/null || echo "unknown")
+  MAVIS_GIT_SHA=$MAVIS_GIT_SHA
+
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Configuring and building jn.mavis submodule" >&5
+printf "%s\n" "$as_me: Configuring and building jn.mavis submodule" >&6;}
+  MAVIS_BUILD_DIR="${srcdir}/jn.mavis/release"
+  if test ! -d "$MAVIS_BUILD_DIR"; then
+      mkdir -p "$MAVIS_BUILD_DIR" || as_fn_error $? "Failed to create MAVIS build directory" "$LINENO" 5
+  fi
+  (cd "$MAVIS_BUILD_DIR" && cmake .. -DCMAKE_BUILD_TYPE=FastDebug -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF && make -j$(nproc)) \
+      || as_fn_error $? "Failed to build jn.mavis submodule" "$LINENO" 5
+
+else $as_nop
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Using external MAVIS at $external_mavis_path" >&5
+printf "%s\n" "$as_me: Using external MAVIS at $external_mavis_path" >&6;}
+
+fi
+
+#-------------------------------------------------------------------------
+# Get current repo SHA
+#-------------------------------------------------------------------------
+GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+
+if test "x$external_stf_lib_path" = "x"
+then :
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Configuring and building stf_lib submodule" >&5
+printf "%s\n" "$as_me: Configuring and building stf_lib submodule" >&6;}
+  STF_LIB_BUILD_DIR="${srcdir}/stf_lib/release"
+  if test ! -d "$STF_LIB_BUILD_DIR"; then
+      mkdir -p "$STF_LIB_BUILD_DIR" || as_fn_error $? "Failed to create build directory for stf_lib" "$LINENO" 5
+  fi
+
+  (cd "$STF_LIB_BUILD_DIR" && cmake .. -DCMAKE_BUILD_TYPE=FastDebug -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF && make -j$(nproc)) || \
+      as_fn_error $? "Failed to build stf_lib submodule" "$LINENO" 5
+
+  STF_LIB_PATH="${STF_LIB_BUILD_DIR}/lib"
+
+else $as_nop
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Using external STF_LIB at $external_stf_lib_path" >&5
+printf "%s\n" "$as_me: Using external STF_LIB at $external_stf_lib_path" >&6;}
+  STF_LIB_PATH="${external_stf_lib_path}/lib"
+
+fi
+
+
+
+#-------------------------------------------------------------------------
+# Add stf_lib to linker flags
+#-------------------------------------------------------------------------
+
+STF_LIB_PATH="${srcdir}/stf_lib/release/lib"
+if test -f "${STF_LIB_PATH}/libstf.a"; then
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Found libstf.a at ${STF_LIB_PATH}" >&5
+printf "%s\n" "$as_me: Found libstf.a at ${STF_LIB_PATH}" >&6;}
+    LDFLAGS="-L${STF_LIB_PATH} $LDFLAGS"
+    LIBS="-lstf $LIBS"
+else
+    as_fn_error $? "libstf.a not found in ${STF_LIB_PATH}. Ensure stf_lib is built correctly." "$LINENO" 5
+fi
+
+#-------------------------------------------------------------------------
+# Check for the dhrystone directory
+#-------------------------------------------------------------------------
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for dhrystone directory" >&5
+printf %s "checking for dhrystone directory... " >&6; }
+
+DHRYSTONE_PATH="../dhrystone"
+
+if test -d "$DHRYSTONE_PATH" && test -f "$DHRYSTONE_PATH/Makefile"; then
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found at $DHRYSTONE_PATH" >&5
+printf "%s\n" "found at $DHRYSTONE_PATH" >&6; }
+else
+    as_fn_error $? "dhrystone directory not found or incomplete. Ensure it is present in ../dhrystone" "$LINENO" 5
+fi
+
+DHRYSTONE_PATH=$DHRYSTONE_PATH
+
+DHRYSTONE_INSTALL_BIN=$prefix/bin
+
+
+#-------------------------------------------------------------------------
+# Version Information
+#-------------------------------------------------------------------------
+STF_SPIKE_VERSION_MAJOR=1
+STF_SPIKE_VERSION_MINOR=0
+STF_SPIKE_VERSION_PATCH=0
+
+
+
+
+#-------------------------------------------------------------------------
+# Check for the riscv-tests submodule
+#-------------------------------------------------------------------------
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for riscv-tests submodule" >&5
+printf %s "checking for riscv-tests submodule... " >&6; }
+
+if test -d "${srcdir}/riscv-tests" && test -f "${srcdir}/riscv-tests/.git"; then
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found" >&5
+printf "%s\n" "found" >&6; }
+else
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: riscv-tests submodule not found or incomplete. Initializing and updating..." >&5
+printf "%s\n" "$as_me: riscv-tests submodule not found or incomplete. Initializing and updating..." >&6;}
+    if ! (cd "${srcdir}" && git submodule update --init --recursive); then
+        as_fn_error $? "Failed to initialize and update riscv-tests submodule. Ensure git is available and the submodule is correctly configured." "$LINENO" 5
+    fi
+fi
+
+#-------------------------------------------------------------------------
+# Configure and build riscv-tests submodule
+#-------------------------------------------------------------------------
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: Configuring and building riscv-tests submodule" >&5
+printf "%s\n" "$as_me: Configuring and building riscv-tests submodule" >&6;}
+RISCV_TESTS_DIR="${srcdir}/riscv-tests"
+
+# Ensure riscv-tests is fully checked out
+if test ! -d "$RISCV_TESTS_DIR" || test ! -f "$RISCV_TESTS_DIR/configure.ac"; then
+    as_fn_error $? "riscv-tests submodule is missing or incomplete. Ensure it is properly cloned and submodules are updated." "$LINENO" 5
+fi
+
+# Run autoconf if configure script does not exist
+if test ! -f "$RISCV_TESTS_DIR/configure"; then
+    (cd "$RISCV_TESTS_DIR" && autoconf) || as_fn_error $? "Failed to run autoconf for riscv-tests" "$LINENO" 5
+fi
+
+# Set the correct install path relative to the build directory
+INSTALL_DIR="$(pwd)/../install"
+
+# Configure, build, and install riscv-tests
+if test -f "$RISCV_TESTS_DIR/configure"; then
+    (cd "$RISCV_TESTS_DIR" && \
+        ./configure --prefix="$INSTALL_DIR" && \
+        make -j$(nproc) && \
+        make install) || as_fn_error $? "Failed to build and install riscv-tests submodule" "$LINENO" 5
+else
+    as_fn_error $? "riscv-tests configure script not found after autoconf" "$LINENO" 5
+fi
+
 #-------------------------------------------------------------------------
 # These macros check to see if we can do a stow-based install and also
 # check for an isa simulator suitable for running the unit test programs
@@ -6980,6 +7281,53 @@ ac_config_files="$ac_config_files riscv-fesvr.pc"
 ac_config_files="$ac_config_files riscv-disasm.pc"
 
 ac_config_files="$ac_config_files riscv-riscv.pc"
+
+
+#-------------------------------------------------------------------------
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: ================================================" >&5
+printf "%s\n" "$as_me: ================================================" >&6;}
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}:  Configuration Summary " >&5
+printf "%s\n" "$as_me:  Configuration Summary " >&6;}
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: ================================================" >&5
+printf "%s\n" "$as_me: ================================================" >&6;}
+if test "x$external_mavis_path" = "x"
+then :
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}:  MAVIS        : building local submodule" >&5
+printf "%s\n" "$as_me:  MAVIS        : building local submodule" >&6;}
+
+else $as_nop
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}:  MAVIS        : external at $external_mavis_path" >&5
+printf "%s\n" "$as_me:  MAVIS        : external at $external_mavis_path" >&6;}
+
+fi
+
+if test "x$external_stf_lib_path" = "x"
+then :
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}:  STF_LIB      : building local submodule" >&5
+printf "%s\n" "$as_me:  STF_LIB      : building local submodule" >&6;}
+
+else $as_nop
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}:  STF_LIB      : external at $external_stf_lib_path" >&5
+printf "%s\n" "$as_me:  STF_LIB      : external at $external_stf_lib_path" >&6;}
+
+fi
+
+#AS_IF([test "x$external_stf_tools_path" = "x"], [
+#  AC_MSG_NOTICE([ STF_TOOLS    : building local submodule])
+#], [
+#  AC_MSG_NOTICE([ STF_TOOLS    : external at $external_stf_tools_path])
+#])
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}:  riscv-tests  : building local submodule" >&5
+printf "%s\n" "$as_me:  riscv-tests  : building local submodule" >&6;}
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: ================================================" >&5
+printf "%s\n" "$as_me: ================================================" >&6;}
+
+#-------------------------------------------------------------------------
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
