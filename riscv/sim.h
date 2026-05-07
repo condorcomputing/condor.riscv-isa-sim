@@ -44,13 +44,16 @@ public:
   int run();
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_quiet_mode(bool value);
   void add_device(reg_t addr, std::shared_ptr<abstract_device_t> dev);
 
+  bool in_quiet_mode() { return quiet_mode_is_set; }
   // Configure logging
   //
   // If enable_log is true, an instruction trace will be generated. If
   // enable_commitlog is true, so will the commit results
-  void configure_log(bool enable_log, bool enable_commitlog);
+  // if enable_stf_log is true commit results will be captured
+  void configure_log(bool enable_log, bool enable_commitlog, bool enable_stf_log);
 
   void set_procs_debug(bool value);
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {
@@ -101,6 +104,7 @@ private:
   size_t current_proc;
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
+  bool quiet_mode_is_set{false}; // true => only warn/errs to console
   bool log;
   remote_bitbang_t* remote_bitbang;
   std::optional<std::function<void()>> next_interactive_action;

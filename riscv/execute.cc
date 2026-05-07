@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include "decode_macros.h"
+#include "stf_handler.h"
 #include <cassert>
 
 static void commit_log_reset(processor_t* p)
@@ -85,7 +86,7 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
       continue;
 
     char prefix = ' ';
-    int size;
+    int size=0;
     int rd = item.first >> 4;
     bool is_vec = false;
     bool is_vreg = false;
@@ -163,7 +164,7 @@ static inline reg_t execute_insn_fast(processor_t* p, reg_t pc, insn_fetch_t fet
 }
 static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t fetch)
 {
-  if (p->get_log_commits_enabled()) {
+  if (p->get_log_commits_enabled() || stfhandler->stf_enable_log_commits()) {
     commit_log_reset(p);
     commit_log_stash_privilege(p);
   }
@@ -173,6 +174,8 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
   try {
     npc = fetch.func(p, fetch.insn, pc);
     if (npc != PC_SERIALIZE_BEFORE) {
+      stfhandler->trace_insn(p,fetch,pc,npc,"SLOW LOOP");
+      p->get_bb_tracer().simpoint_step(1u, pc);
       if (p->get_log_commits_enabled()) {
         commit_log_print_insn(p, pc, fetch.insn);
       }
@@ -183,7 +186,7 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
       }
       throw;
   } catch(mem_trap_t& t) {
-      //handle segfault in midlle of vector load/store
+      //handle segfault in middle of vector load/store
       if (p->get_log_commits_enabled()) {
         for (auto item : p->get_state()->log_reg_write) {
           if ((item.first & 3) == 3) {
@@ -201,10 +204,11 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
   return npc;
 }
 
-bool processor_t::slow_path() const
+bool processor_t::slow_path() 
 {
   return debug || state.single_step != state.STEP_NONE || state.debug_mode ||
-         log_commits_enabled || histogram_enabled || in_wfi || check_triggers_icount;
+         log_commits_enabled || histogram_enabled || in_wfi || 
+         check_triggers_icount || stfhandler->in_traceable_region() || get_bb_tracer().in_region_of_interest();
 }
 
 // fetch/decode/execute loop
@@ -285,6 +289,9 @@ void processor_t::step(size_t n)
           if (debug && !state.serialized)
             disasm(fetch.insn);
           pc = execute_insn_logged(this, pc, fetch);
+          if (pc != PC_SERIALIZE_BEFORE) {
+            ++stfhandler->executed_instructions;
+	  }
           advance_pc();
 
           // Resume from debug mode in critical error
@@ -301,11 +308,24 @@ void processor_t::step(size_t n)
       }
       else while (instret < n)
       {
+        //This check should never fire 
+        if(unlikely(stfhandler->in_traceable_region())) {
+          fprintf(stderr,"-E: unexpected trace region while in fast loop\n");
+          assert(0);
+        }
+
         // Main simulation loop, fast path.
         for (auto ic_entry = _mmu->access_icache(pc); instret < n; instret++) {
           auto fetch = ic_entry->data;
+          //If this is the start macro we exit this loop and process 
+          //in the slow loop
+          if(unlikely(stfhandler->is_start_of_region(fetch.insn.bits()))) {
+            break; //exit the for(;;) before insn is executed
+          }
+
           ic_entry = ic_entry->next;
           auto new_pc = execute_insn_fast(this, pc, fetch);
+          ++stfhandler->executed_instructions;
           if (unlikely(ic_entry->tag != new_pc)) {
             ic_entry = &_mmu->icache[_mmu->icache_index(new_pc)];
             _mmu->icache[_mmu->icache_index(pc)].next = ic_entry;
@@ -316,6 +336,10 @@ void processor_t::step(size_t n)
             }
           }
           state.pc = pc = ic_entry->tag;
+        }
+       
+        if(unlikely(stfhandler->in_traceable_region())) {
+          break; //exit while
         }
       }
     }

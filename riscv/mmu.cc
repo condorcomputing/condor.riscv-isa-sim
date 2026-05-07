@@ -327,8 +327,8 @@ void mmu_t::load_slow_path(reg_t original_addr, std::size_t len,
     check_triggers(triggers::OPERATION_LOAD,
       transformed_addr, access_info.effective_virt, len, bytes);
 
-  if (unlikely(proc->get_log_commits_enabled()))
-    proc->state.log_mem_read.push_back(std::make_tuple(original_addr, 0, len));
+  if (proc && unlikely(proc->get_log_or_stf_commits_enabled()))
+    proc->state.log_mem_read.push_back(std::make_tuple(original_addr, reg_from_bytes(len, bytes), len));
 }
 
 inline void mmu_t::perform_intrapage_store(reg_t vaddr, uintptr_t host_addr, reg_t paddr, reg_t len, const uint8_t* bytes, xlate_flags_t xlate_flags)
@@ -417,7 +417,7 @@ void mmu_t::store_slow_path(reg_t original_addr, std::size_t len,
     store_slow_path_intrapage(len, bytes, access_info, actually_store);
   }
 
-  if (actually_store && proc && unlikely(proc->get_log_commits_enabled())) {
+  if (actually_store && proc && unlikely(proc->get_log_or_stf_commits_enabled())) {
     for (size_t offset = 0; offset < len; offset += sizeof(reg_t)) {
       auto this_size = std::min(len - offset, sizeof(reg_t));
       auto this_data = reg_from_bytes(this_size, bytes + offset);
@@ -465,7 +465,7 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
 
   if (in_mprv()
       || !pmp_homogeneous(base_paddr, PGSIZE)
-      || (proc && proc->get_log_commits_enabled()))
+      || (proc && proc->get_log_or_stf_commits_enabled()))
     return entry;
 
   auto trace_flag = tracer.interested_in_range(base_paddr, base_paddr + PGSIZE, type) ? TLB_CHECK_TRACER : 0;

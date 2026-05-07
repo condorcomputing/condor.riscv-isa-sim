@@ -93,6 +93,6 @@ reg_t vectorUnit_t::vectorUnit_t::set_vl(int rd, int rs1, reg_t reqVL, reg_t new
 }
 
 void vectorUnit_t::log_elt_write_if_needed(reg_t vReg) const {
-  if (unlikely(p->get_log_commits_enabled()))
+  if (unlikely(p->get_log_or_stf_commits_enabled()))
     p->get_state()->log_reg_write[((vReg) << 4) | 2] = {0, 0};
 }

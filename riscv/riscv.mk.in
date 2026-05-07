@@ -16,6 +16,7 @@ riscv_install_pcs = yes
 riscv_install_prog_srcs = \
 
 riscv_install_hdrs = \
+	bb_tracer.h \
 	abstract_device.h \
 	abstract_interrupt_controller.h \
 	bloom_filter.h \
@@ -40,6 +41,7 @@ riscv_install_hdrs = \
 	memtracer.h \
 	mmu.h \
 	platform.h \
+	stf_handler.h \
 	processor.h \
 	remote_bitbang.h \
 	rocc.h \
@@ -53,6 +55,7 @@ riscv_precompiled_hdrs = \
 	insn_template.h \
 
 riscv_srcs = \
+	bb_tracer.cc \
 	processor.cc \
 	execute.cc \
 	dts.cc \

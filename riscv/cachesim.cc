@@ -70,7 +70,8 @@ cache_sim_t::cache_sim_t(const cache_sim_t& rhs)
 
 cache_sim_t::~cache_sim_t()
 {
-  print_stats();
+  //JN: FIXME: make cmd line option
+  //print_stats();
   delete [] tags;
 }
 
