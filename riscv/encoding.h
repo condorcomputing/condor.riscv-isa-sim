@@ -2889,6 +2889,7 @@
 #define CSR_MHPMCOUNTER29H 0xb9d
 #define CSR_MHPMCOUNTER30H 0xb9e
 #define CSR_MHPMCOUNTER31H 0xb9f
+#define CSR_SIMPOINT 0x8c2 // Special CSR value to be used when placing ROI marks in benchmark
 
 #define CAUSE_MISALIGNED_FETCH 0x0
 #define CAUSE_FETCH_ACCESS 0x1

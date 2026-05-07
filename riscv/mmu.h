@@ -93,8 +93,13 @@ public:
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
 
-    if (unlikely(proc && proc->get_log_commits_enabled()))
-      proc->state.log_mem_read.push_back(std::make_tuple(addr, 0, sizeof(T)));
+    //NOTE: The original source passed 0 for the 2nd tuple argument.
+    //      It is not clear at the moment if anything in the original
+    //      source relies on this. For STF purposes I am use the value
+    //      returned from_target(res);
+    if (unlikely(proc && proc->get_log_or_stf_commits_enabled())) {
+      proc->state.log_mem_read.push_back(std::make_tuple(addr, from_target(res), sizeof(T)));
+    }
 
     return from_target(res);
   }
@@ -135,8 +140,9 @@ public:
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
 
-    if (unlikely(proc && proc->get_log_commits_enabled()))
+    if (unlikely(proc && proc->get_log_or_stf_commits_enabled())) 
       proc->state.log_mem_write.push_back(std::make_tuple(addr, val, sizeof(T)));
+
   }
 
   template<typename T>

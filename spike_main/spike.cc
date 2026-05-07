@@ -8,6 +8,7 @@
 #include "remote_bitbang.h"
 #include "cachesim.h"
 #include "extension.h"
+#include "stf_handler.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdexcept>
@@ -20,7 +21,10 @@
 #include <limits>
 #include <cinttypes>
 #include <sstream>
+#include <chrono>
 #include "../VERSION"
+
+using namespace std::chrono;
 
 static void help(int exit_code = 1)
 {
@@ -61,6 +65,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --extlib=<name>       Shared library to load\n");
   fprintf(stderr, "                        This flag can be used multiple times.\n");
   fprintf(stderr, "  --rbb-port=<port>     Listen on <port> for remote bitbang connection\n");
+  fprintf(stderr, "  --quiet               No info console messages, only warnings and errors\n");
   fprintf(stderr, "  --dump-dts            Print device tree string and exit\n");
   fprintf(stderr, "  --dtb=<path>          Use specified device tree blob [default: auto-generate]\n");
   fprintf(stderr, "  --disable-dtb         Don't write the device tree blob into memory\n");
@@ -85,6 +90,8 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
 
+  bb_tracer_options::bbv_options_help();
+  stfhandler->stf_help();
   exit(exit_code);
 }
 
@@ -321,6 +328,7 @@ int main(int argc, char** argv)
   bool log = false;
   bool UNUSED socket = false;  // command line option -s
   bool dump_dts = false;
+  bool quiet_mode = false;
   bool dtb_enabled = true;
   const char* kernel = NULL;
   reg_t kernel_offset, kernel_size;
@@ -395,6 +403,7 @@ int main(int argc, char** argv)
   parser.option(0, "device", 1, device_parser);
   parser.option(0, "extension", 1, [&](const char* s){extensions.push_back(find_extension(s));});
   parser.option(0, "dump-dts", 0, [&](const char UNUSED *s){dump_dts = true;});
+  parser.option(0, "quiet",       0, [&](const char UNUSED *s){quiet_mode = true;});
   parser.option(0, "disable-dtb", 0, [&](const char UNUSED *s){dtb_enabled = false;});
   parser.option(0, "dtb", 1, [&](const char *s){dtb_file = s;});
   parser.option(0, "kernel", 1, [&](const char* s){kernel = s;});
@@ -451,11 +460,18 @@ int main(int argc, char** argv)
     }
   });
 
+  // BBV capture options
+  bb_tracer_options::set_options(parser);
+
+  //stf_trace options
+  stfhandler->set_options(parser);
+
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
-  if (!*argv1)
+  if (!*argv1 || !stfhandler->option_checks(cfg)) {
     help();
+  }
 
   std::vector<std::pair<reg_t, abstract_mem_t*>> mems =
       make_mems(cfg.mem_layout);
@@ -539,10 +555,26 @@ int main(int argc, char** argv)
   }
 
   s.set_debug(debug);
-  s.configure_log(log, log_commits);
+  s.configure_log(log, log_commits, stfhandler->stf_enable_log_commits());
   s.set_histogram(histogram);
+  s.set_quiet_mode(quiet_mode);
 
-  auto return_code = s.run();
+  auto exe_start = high_resolution_clock::now();
+
+  int return_code = 0;
+  try{
+    return_code = s.run();
+  }
+  catch(bb_ctrl::simpoint_terminate &e){
+    // display cause of termination and let simulator gracefully close
+    std::cout << e.what();
+    return_code = 0;
+  }
+
+  if(stfhandler->stf_writer_enabled()) {
+    stfhandler->report_stats(s,cfg,exe_start);
+    stfhandler->close_trace();
+  }
 
   for (auto& mem : mems)
     delete mem.second;

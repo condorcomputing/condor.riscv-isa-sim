@@ -111,7 +111,7 @@ bool trigger_t::mode_match(reg_t prv, bool v) const noexcept
     case PRV_M: return m;
     case PRV_S: return v ? vs : s;
     case PRV_U: return v ? vu : u;
-    default: assert(false);
+    default: assert(false); return false; //avoid the warning
   }
 }
 
@@ -236,6 +236,7 @@ bool mcontrol_common_t::simple_match(unsigned xlen, reg_t value) const {
       }
   }
   assert(0);
+  return false; //avoid the warning
 }
 
 std::optional<match_result_t> mcontrol_common_t::detect_memory_access_match(processor_t * const proc, operation_t operation, reg_t address, std::optional<reg_t> data) noexcept {

@@ -63,7 +63,7 @@ void csr_t::log_write() const noexcept {
 }
 
 void csr_t::log_special_write(const reg_t UNUSED address, const reg_t UNUSED val) const noexcept {
-  if (proc->get_log_commits_enabled())
+  if (proc->get_log_or_stf_commits_enabled())
     proc->get_state()->log_reg_write[((address) << 4) | 4] = {val, 0};
 }
 

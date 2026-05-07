@@ -158,7 +158,8 @@ void htif_t::load_program()
     tohost_addr = symbols["tohost"];
     fromhost_addr = symbols["fromhost"];
   } else {
-    fprintf(stderr, "warning: tohost and fromhost symbols not in ELF; can't communicate with target\n");
+    //JN: make silent
+    //fprintf(stderr, "warning: tohost and fromhost symbols not in ELF; can't communicate with target\n");
   }
 
   // detect torture tests so we can print the memory signature at the end

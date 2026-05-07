@@ -1,5 +1,6 @@
 #include "processor.h"
 #include "debug_defines.h"
+#include "bb_tracer.h"
 
 void state_t::add_csr(reg_t addr, const csr_t_p& csr)
 {
@@ -380,4 +381,7 @@ void state_t::csr_init(processor_t* const proc, reg_t max_isa)
 
   const reg_t srmcfg_mask = SRMCFG_MCID | SRMCFG_RCID;
   add_const_ext_csr(EXT_SSQOSID, CSR_SRMCFG, std::make_shared<srmcfg_csr_t>(proc, CSR_SRMCFG, srmcfg_mask, 0));
+
+  // Special CSR we write to when we want to capture BBV
+  add_csr(CSR_SIMPOINT, std::make_shared<bb_ctrl::simpoint_csr_t>(proc, CSR_SIMPOINT,0));
 }
