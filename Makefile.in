@@ -16,6 +16,13 @@
 #
 
 #-------------------------------------------------------------------------
+# Starting at 2.0.0
+#-------------------------------------------------------------------------
+STF_SPIKE_VERSION_MAJOR := 2
+STF_SPIKE_VERSION_MINOR := 0
+STF_SPIKE_VERSION_PATCH := 0
+
+#-------------------------------------------------------------------------
 # Basic setup
 #-------------------------------------------------------------------------
 
@@ -29,12 +36,17 @@
 % : SCCS/s.%
 
 # Default is to build the prereqs of the all target (defined at bottom)
-default : all
+default : git-version.h all $(STF_DEP)
 .PHONY : default
 
 project_name := @PACKAGE_TARNAME@
 src_dir      := @srcdir@
 scripts_dir  := $(src_dir)/scripts
+
+STF_SPIKE_GIT_SHA := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+STF_LIB_GIT_SHA := $(shell git -C $(src_dir)/stf_lib rev-parse HEAD 2>/dev/null || echo git-fail-makefile)
+
+MAVIS_GIT_SHA := $(shell git -C $(src_dir)/jn.mavis rev-parse HEAD 2>/dev/null || echo git-fail-makefile)
 
 HAVE_INT128 := @HAVE_INT128@
 HAVE_DLOPEN := @HAVE_DLOPEN@
@@ -73,6 +85,33 @@ sprojs_include := -iquote . -I$(src_dir) $(addprefix -iquote $(src_dir)/, $(spro
 VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 
 #-------------------------------------------------------------------------
+# STF LIB
+#-------------------------------------------------------------------------
+STF = @EXTERNAL_STF_LIB_PATH@
+ifeq ($(STF),)
+  STF = $(src_dir)/stf_lib
+  STF_INC = -I$(STF)
+  STF_LIB = -L$(STF)/release/lib -lstf -lzstd
+  STF_DEP = $(STF)/release/lib/libstf.a
+  stf_lib_build:
+	@echo "Building STF_LIB at $(STF)/release"
+	@mkdir -p $(STF)/release
+	@cd $(STF)/release && \
+        cmake .. -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+        -DCMAKE_BUILD_TYPE=FastDebug && make -j$(nproc)
+else
+  STF_INC = -I$(STF)
+  STF_LIB = -L$(STF)/lib -lstf -lzstd
+  STF_DEP =
+  stf_lib_build:
+	@echo "Using external STF_LIB at $(STF), skipping build."
+endif
+
+CPPFLAGS += $(STF_INC)
+LDFLAGS += $(STF_LIB)
+.PHONY: stf_lib_build
+
+#-------------------------------------------------------------------------
 # Programs and flags 
 #-------------------------------------------------------------------------
 
@@ -93,7 +132,7 @@ VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 # These all appear on the command line, from lowest precedence to
 # highest.
 
-default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -Wno-nonportable-include-path -g -O2 -fPIC
+default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -DNDEBUG -O3 -fPIC
 default-CXXFLAGS := $(default-CFLAGS) -std=c++2a
 
 mcppbs-CPPFLAGS := @CPPFLAGS@
@@ -123,7 +162,7 @@ all-link-flags := $(mcppbs-LDFLAGS) $(LDFLAGS)
 
 comma := ,
 LD            := $(CXX)
-LIBS          := @LIBS@ @BOOST_ASIO_LIB@ @BOOST_REGEX_LIB@
+LIBS          := @LIBS@ @BOOST_ASIO_LIB@ @BOOST_REGEX_LIB@ -lstf -lzstd
 LINK          := $(LD) -L. $(all-link-flags) -Wl,-rpath,$(install_libs_dir) $(patsubst -L%,-Wl$(comma)-rpath$(comma)%,$(filter -L%,$(LDFLAGS)))
 
 # Library creation
@@ -415,7 +454,7 @@ install-pc : $(install_pcs)
     $(INSTALL_HDR) $$file $(install_libs_dir)/pkgconfig/; \
   done
 
-install : install-hdrs install-config-hdrs install-libs install-exes install-pc
+install : install-hdrs install-config-hdrs install-libs install-exes install-pc dhrystone_install
 
 .PHONY : install install-hdrs install-config-hdrs install-libs install-exes
 
@@ -490,12 +529,83 @@ junk += $(project_name)-*.tar.gz
 .PHONY : dist distcheck
 
 #-------------------------------------------------------------------------
+# Dhrystone build and install
+#-------------------------------------------------------------------------
+
+DHRYSTONE_PATH := @DHRYSTONE_PATH@
+DHRYSTONE_INSTALL_BIN := @DHRYSTONE_INSTALL_BIN@
+
+#	@echo "Building Dhrystone at $(DHRYSTONE_PATH)"
+dhrystone_build:
+	$(MAKE) -C $(DHRYSTONE_PATH)
+
+#	@echo "Installing Dhrystone binaries to $(DHRYSTONE_INSTALL_BIN)"
+dhrystone_install:
+	$(MKINSTALLDIRS) $(DHRYSTONE_INSTALL_BIN)
+	$(INSTALL_EXE) $(DHRYSTONE_PATH)/bin/* $(DHRYSTONE_INSTALL_BIN)/
+
+.PHONY: dhrystone_build dhrystone_install
+
+#-------------------------------------------------------------------------
 # Default
 #-------------------------------------------------------------------------
 
-all : $(install_hdrs) $(install_libs) $(install_exes)
+all: stf_lib_build mavis_build dhrystone_build $(install_hdrs) $(install_libs) $(install_exes)
+
 .PHONY : all
 
+#-------------------------------------------------------------------------
+# STF
+#-------------------------------------------------------------------------
+$(STF_DEP):
+	@echo "Building STF_LIB at $(STF)/build/lib"
+	@mkdir -p $(STF)/build
+	@cd $(STF)/build && \
+        cmake .. -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+        -DCMAKE_BUILD_TYPE=FastDebug && make -j$(nproc)
+
+#-------------------------------------------------------------------------
+# Mavis
+#-------------------------------------------------------------------------
+MAVIS = @EXTERNAL_MAVIS_PATH@
+ifeq ($(MAVIS),)
+  MAVIS = $(src_dir)/jn.mavis
+  MAVIS_INC = -I$(MAVIS)/inc
+  MAVIS_LIB = -L$(MAVIS)/release/lib -lmavis
+  CPPFLAGS += $(MAVIS_INC)
+  LDFLAGS += $(MAVIS_LIB)
+  mavis_build:
+		@echo "Building MAVIS at $(MAVIS)/release"
+		@mkdir -p $(MAVIS)/release
+		@cd $(MAVIS)/release && \
+		cmake .. -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+		-DCMAKE_BUILD_TYPE=FastDebug && make -j$(nproc)
+else
+  CPPFLAGS += -I$(MAVIS)/include
+  LDFLAGS += -L$(MAVIS)/lib -lmavis
+  mavis_build:
+		@echo "Using external MAVIS at $(MAVIS), skipping build."
+endif
+.PHONY: mavis_build
+
+#-------------------------------------------------------------------------
+# STF RISC-V test binaries
+#-------------------------------------------------------------------------
+stf_test_binaries:
+	$(MAKE) -C ../tests/stf_tests
+
+.PHONY: stf_test_binaries
+
+#-------------------------------------------------------------------------
+# Regress
+#-------------------------------------------------------------------------
+regress: stf_test_binaries
+	@echo "Running regression tests in ../tests"
+	@../tests/run_regression.sh || { echo "Regression tests FAILED"; exit 1; }
+
+#	@cd ../tests && $(MAKE) || { echo "Regression tests FAILED"; exit 1; }
+
+.PHONY: regress
 #-------------------------------------------------------------------------
 # Makefile debugging
 #-------------------------------------------------------------------------
@@ -507,13 +617,34 @@ debug-% :
 	@echo $* = $($*)
 
 #-------------------------------------------------------------------------
+# Git commit SHA header (auto-updated)
+#-------------------------------------------------------------------------
+
+git-version.h:
+	echo '#ifndef GIT_VERSION_H'         >  git-version.h
+	echo '#define GIT_VERSION_H'         >> git-version.h
+	echo '#define STF_SPIKE_GIT_SHA "'$(STF_SPIKE_GIT_SHA)'"' >> git-version.h
+	echo '#define STF_LIB_GIT_SHA   "'$(STF_LIB_GIT_SHA)'"'   >> git-version.h
+	echo '#define MAVIS_GIT_SHA     "'$(MAVIS_GIT_SHA)'"'     >> git-version.h
+	echo '#define STF_SPIKE_VERSION_MAJOR '$(STF_SPIKE_VERSION_MAJOR) >> git-version.h
+	echo '#define STF_SPIKE_VERSION_MINOR '$(STF_SPIKE_VERSION_MINOR) >> git-version.h
+	echo '#define STF_SPIKE_VERSION_PATCH '$(STF_SPIKE_VERSION_PATCH) >> git-version.h
+	echo '#endif /* GIT_VERSION_H */'    >> git-version.h
+
+junk += git-version.h
+
+#-------------------------------------------------------------------------
 # Clean up junk
 #-------------------------------------------------------------------------
+clean-dhrystone:
+	$(MAKE) -C $(DHRYSTONE_PATH) clean
 
 clean :
 	rm -rf *~ \#* $(junk)
+	$(MAKE) -C $(DHRYSTONE_PATH) clean
 
 distclean :
 	rm -rf *~ \#* $(junk) $(dist_junk)
+	$(MAKE) -C $(DHRYSTONE_PATH) clean
 
 .PHONY : clean distclean
