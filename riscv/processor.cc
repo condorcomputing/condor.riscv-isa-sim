@@ -27,6 +27,11 @@
 # pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
 
+#include "stf_handler.h"
+
+StfHandler *StfHandler::instance = 0;
+std::shared_ptr<StfHandler> stfhandler(StfHandler::getInstance());
+
 #undef STATE
 #define STATE state
 
@@ -39,7 +44,12 @@ processor_t::processor_t(const char* isa_str, const char* priv_str,
   histogram_enabled(false), log_commits_enabled(false),
   log_file(log_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
   in_wfi(false), check_triggers_icount(false),
-  impl_table(256, false), extension_enable_table(isa.get_extension_table()),
+  impl_table(256, false),
+  m_bb_tracer(bb_tracer_options::en_bbv,
+              bb_tracer_options::bb_file,
+              bb_tracer_options::simpoint_size,
+              id),
+  extension_enable_table(isa.get_extension_table()),
   last_pc(1), executions(1), TM(cfg->trigger_count)
 {
   VU.p = this;
@@ -140,6 +150,11 @@ void processor_t::set_debug(bool value)
 void processor_t::set_histogram(bool value)
 {
   histogram_enabled = value;
+}
+
+void processor_t::set_quiet_mode(bool value)
+{
+  quiet_mode_is_set = value;
 }
 
 void processor_t::enable_log_commits()

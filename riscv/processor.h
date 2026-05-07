@@ -17,6 +17,7 @@
 #include "triggers.h"
 #include "../fesvr/memif.h"
 #include "vector_unit.h"
+#include "bb_tracer.h"
 
 #define FIRST_HPMCOUNTER 3
 #define N_HPMCOUNTERS 29
@@ -28,6 +29,7 @@ class simif_t;
 class trap_t;
 class extension_t;
 class disassembler_t;
+class bb_tracer;
 
 reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
 
@@ -262,8 +264,16 @@ public:
 
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_quiet_mode(bool value);
+
   void enable_log_commits();
   bool get_log_commits_enabled() const { return log_commits_enabled; }
+
+  void enable_stf_commits() { stf_commits_enabled = true; }
+  bool get_log_or_stf_commits_enabled() const {
+    return log_commits_enabled || stf_commits_enabled;
+  }
+
   void reset();
   void step(size_t n); // run for n cycles
   void put_csr(int which, reg_t val);
@@ -358,7 +368,7 @@ public:
   // When true, display disassembly of each instruction that's executed.
   bool debug;
   // When true, take the slow simulation path.
-  bool slow_path() const;
+  bool slow_path(); 
   bool halted() const { return state.debug_mode; }
   enum {
     HR_NONE,    /* Halt request is inactive. */
@@ -371,6 +381,7 @@ public:
   void set_pmp_num(reg_t pmp_num);
   void set_pmp_granularity(reg_t pmp_granularity);
   void set_mmu_capability(int cap);
+  bool in_quiet_mode() { return quiet_mode_is_set;}
 
   const char* get_symbol(uint64_t addr);
 
@@ -380,6 +391,9 @@ public:
   void check_if_lpad_required();
 
   reg_t select_an_interrupt_with_default_priority(reg_t enabled_interrupts) const;
+  uint64_t get_last_pc() { return last_pc; }
+
+  bb_tracer& get_bb_tracer() {return m_bb_tracer;}
 
 private:
   const isa_parser_t isa;
@@ -393,13 +407,16 @@ private:
   uint32_t id;
   unsigned xlen;
   bool histogram_enabled;
+  bool quiet_mode_is_set{false};
   bool log_commits_enabled;
+  bool stf_commits_enabled{false};
   FILE *log_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
   bool in_wfi;
   bool check_triggers_icount;
   std::vector<bool> impl_table;
+  bb_tracer m_bb_tracer;
 
   // Note: does not include single-letter extensions in misa
   std::bitset<NUM_ISA_EXTENSIONS> extension_enable_table;
