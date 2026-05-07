@@ -417,6 +417,7 @@ private:
   mutable std::bitset<NUM_ISA_EXTENSIONS> extension_assumed_const;
 
   std::vector<opcode_map_entry_t> opcode_map[128];
+  std::vector<opcode_map_entry_t> opcode_map_logged[128];
   std::vector<insn_desc_t> instructions;
   std::vector<insn_desc_t> custom_instructions;
   std::unordered_map<reg_t,uint64_t> pc_histogram;

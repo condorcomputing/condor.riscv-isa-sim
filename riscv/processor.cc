@@ -877,9 +877,14 @@ reg_t processor_t::throw_instruction_address_misaligned(reg_t pc)
 
 insn_func_t processor_t::decode_insn(insn_t insn)
 {
-  const auto& pool = opcode_map[insn.bits() % std::size(opcode_map)];
+  std::vector<opcode_map_entry_t>* pool;
+  if (get_log_or_stf_commits_enabled()) {
+     pool = &(opcode_map_logged[insn.bits() % std::size(opcode_map)]);
+  } else {
+     pool = &(opcode_map[insn.bits() % std::size(opcode_map)]);
+  }
 
-  for (auto p = pool.begin(); ; ++p) {
+  for (auto p = pool->begin(); ; ++p) {
     if ((insn.bits() & p->mask) == p->match) {
       return p->func;
     }
@@ -900,7 +905,8 @@ void processor_t::build_opcode_map()
   const size_t N = std::size(opcode_map);
 
   auto build_one = [&](const insn_desc_t& desc) {
-    auto func = desc.func(xlen, rve, get_log_or_stf_commits_enabled());
+    auto func = desc.func(xlen, rve, false);
+    auto func_logged = desc.func(xlen, rve, true);
     if (!zca && insn_length(desc.match) % 4)
       func = &::illegal_instruction;
 
@@ -908,6 +914,7 @@ void processor_t::build_opcode_map()
     for (size_t i = desc.match & (stride - 1); i < N; i += stride) {
       if ((desc.match % N) == (i & desc.mask))
         opcode_map[i].push_back({desc.match, desc.mask, func});
+        opcode_map_logged[i].push_back({desc.match, desc.mask, func_logged});
     }
   };
 
