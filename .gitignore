@@ -8,3 +8,6 @@ autom4te.cache/
 .#*
 *~
 config.log
+install/
+tests/stf_tests/temp/
+tests/logs/

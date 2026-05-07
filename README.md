@@ -1,3 +1,12 @@
+Spike-STF RISC-V ISA Simulator
+============================
+
+This is a fork of Spike which supports STF and BBV generation maintained 
+by [Condor Computing](https://condorcomputing.com/).
+
+The install/build/usage instructions for this fork is found in README\_FORK.md.
+The original README.md begins below.
+
 Spike RISC-V ISA Simulator
 ============================
 
@@ -99,21 +108,26 @@ internals is **not** considered a public API at this time_, and
 backwards-incompatible changes to this interface _will_ be made without
 incrementing the major version number.
 
-Build Steps
+Build Steps 
 ---------------
+Use the build steps above to build this fork. The instructions below are kept 
+for reference.
 
 We assume that the RISCV environment variable is set to the RISC-V tools
 install path.
 
+```
     $ apt-get install device-tree-compiler libboost-regex-dev libboost-system-dev
     $ mkdir build
     $ cd build
     $ ../configure --prefix=$RISCV
     $ make
     $ [sudo] make install
+```
 
 If your system uses the `yum` package manager, you can substitute
 `yum install dtc` for the first step.
+
 
 Build Steps on OpenBSD
 ----------------------
