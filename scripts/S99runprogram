@@ -1,0 +1,48 @@
+#!/bin/sh
+
+# The expected location for the elfs to trace this is populated
+# when building the trace rootfs
+ELF_BASE=/root/trace_elfs
+
+# In boot args trace_elf will be the file name, but exclude the path
+# e.g. trace_elf=dhrystone_opt3.1000.gcc.bare.riscv
+#
+case "$1" in
+  start)
+    TRACE_ELF=$(cat /proc/cmdline | grep trace_elf | sed -e 's/^.*trace_elf=//' -e 's/ .*$//')
+    DEBUG_BOOT=$(grep -qw debug /proc/cmdline && echo 1 || echo 0)
+
+    if [ "$DEBUG_BOOT" -eq 1 ]; then
+      echo "Debug mode detected. Skipping execution."
+      exit 0
+    fi
+
+    if [ -z "${TRACE_ELF}" ]; then
+      echo "No trace elf specified"
+    elif [ ! -x "${ELF_BASE}/${TRACE_ELF}" ]; then
+      echo "Trace binary '${ELF_BASE}/${TRACE_ELF}' not found or not executable"
+    else
+      echo "Running: ${ELF_BASE}/${TRACE_ELF}"
+      "${ELF_BASE}/${TRACE_ELF}"
+
+      echo "Done with ${TRACE_ELF}"
+      # Power off system, let simulator close gracefully 
+      # if benchmark has exited normally
+      poweroff
+    fi
+    ;;
+  stop)
+    # Optional stop logic here
+    ;;
+  restart|reload)
+    "$0" stop
+    "$0" start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+    ;;
+esac
+
+exit $?
+

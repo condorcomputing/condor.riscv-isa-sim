@@ -1,6 +1,11 @@
 #include "devices.h"
 #include "mmu.h"
+#include "json.hpp"
 #include <stdexcept>
+#include <sysexits.h>
+#include <filesystem>
+
+using json = nlohmann::json;
 
 mmio_device_map_t& mmio_device_map()
 {
@@ -55,6 +60,94 @@ std::pair<reg_t, abstract_device_t*> bus_t::find_device(reg_t addr)
   }
   it--;
   return std::make_pair(it->first, it->second);
+}
+
+json bus_t::checkpoint(std::string tag) {
+  json j;
+
+  for (auto dev : devices) {
+    if (auto devp = dynamic_cast<mem_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string fname = "mem" + os.str() + "_" + tag + ".bin";
+
+      std::ofstream out(fname, std::ios::binary);
+      if (!out) {
+        std::cerr << "Failed to open mem.bin for writing\n";
+        exit(EX_CANTCREAT);
+      } else {
+        devp->dump(out);
+        j["mem_"+ os.str()] = fname;
+      }
+    } else if (auto devp = dynamic_cast<clint_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "clint_" + os.str();
+
+      j[key] = devp->checkpoint();
+    } else if (auto devp = dynamic_cast<plic_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "plic_" + os.str();
+
+      j[key] = devp->checkpoint();
+    } else if (dynamic_cast<ns16550_t*>(dev.second)      ||
+               dynamic_cast<debug_module_t*>(dev.second) ||
+               dynamic_cast<rom_device_t*>(dev.second)   ||
+               dynamic_cast<abstract_mem_t*>(dev.second)) {
+      // checkpoint not supported
+    } else {
+      // std::cerr << "unknown device" << std::endl;
+    }
+  }
+
+  return j;
+}
+
+void bus_t::checkpoint_restore(json j) {
+  checkpoint_restore(j, std::string(""));
+}
+
+void bus_t::checkpoint_restore(json j, std::string file_path) {
+
+  for (auto dev : devices) {
+    if (auto devp = dynamic_cast<mem_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "mem_" + os.str();
+
+      std::ifstream in(j[key], std::ios::binary);
+      if (!in) {
+        std::filesystem::path full_path = std::filesystem::path(file_path) / std::filesystem::path(j[key]);
+        in.open(full_path.string(), std::ios::in | std::ios::binary);
+        if (!in) {
+           std::cerr << "Failed to open " << full_path.string() << " for reading\n";
+           exit(EX_NOINPUT);
+        }
+      }
+      devp->checkpoint_restore(in);
+    } else if (auto devp = dynamic_cast<clint_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "clint_" + os.str();
+
+      devp->checkpoint_restore(j[key]);
+    } else if (auto devp = dynamic_cast<plic_t*>(dev.second)) {
+      std::ostringstream os;
+      os << std::hex << dev.first;
+      std::string key = "plic_" + os.str();
+
+      devp->checkpoint_restore(j[key]);
+    } else if (dynamic_cast<debug_module_t*>(dev.second) ||
+               dynamic_cast<ns16550_t*>(dev.second)      ||
+               dynamic_cast<rom_device_t*>(dev.second)   ||
+               dynamic_cast<abstract_mem_t*>(dev.second)) {
+      // checkpoint not supported
+    } else {
+      std::cerr << "Checkpoint restore not supported for unknown device at 0x" << std::hex << dev.first << std::endl;
+    }
+  }
+
 }
 
 mem_t::mem_t(reg_t size)
@@ -113,6 +206,29 @@ void mem_t::dump(std::ostream& o) {
       o.write(empty, PGSIZE);
     } else {
       o.write(sparse_memory_map[ppn], PGSIZE);
+    }
+  }
+}
+
+void mem_t::checkpoint_restore(std::istream& in) {
+  const char empty[PGSIZE] = {0};
+  char* res;
+
+  for (reg_t i = 0; i < sz; i += PGSIZE) {
+    reg_t ppn = i >> PGSHIFT;
+
+    auto search = sparse_memory_map.find(ppn);
+    if (search == sparse_memory_map.end()) {
+      res = (char*)calloc(PGSIZE, 1);
+      if (res == nullptr)
+        throw std::bad_alloc();
+      sparse_memory_map[ppn] = res;
+    } else {
+      res = search->second;
+    }
+
+    if (!in.read(res, PGSIZE)) {
+      std::cerr << "Failed to load checkpoint data." << std::endl;
     }
   }
 }

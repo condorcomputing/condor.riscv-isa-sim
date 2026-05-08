@@ -87,6 +87,8 @@ class basic_csr_t: public csr_t {
   virtual bool unlogged_write(const reg_t val) noexcept override;
  private:
   reg_t val;
+
+ friend class state_t;
 };
 
 class pmpaddr_csr_t: public csr_t {
@@ -130,6 +132,8 @@ class pmpaddr_csr_t: public csr_t {
   friend class pmpcfg_csr_t;  // so he can access cfg
   uint8_t cfg;
   const size_t pmpidx;
+
+  friend class state_t;
 };
 
 typedef std::shared_ptr<pmpaddr_csr_t> pmpaddr_csr_t_p;
@@ -167,6 +171,7 @@ typedef std::shared_ptr<mseccfg_csr_t> mseccfg_csr_t_p;
 // address, plus the vsscratch basic_csr_t under its address.
 
 class virtualized_csr_t: public csr_t {
+ friend state_t;
  public:
   virtualized_csr_t(processor_t* const proc, csr_t_p orig, csr_t_p virt);
 
@@ -191,6 +196,8 @@ class epc_csr_t: public csr_t {
   virtual bool unlogged_write(const reg_t val) noexcept override;
  private:
   reg_t val;
+
+ friend class state_t;
 };
 
 // For mtvec, stvec, and vstvec
@@ -203,6 +210,8 @@ class tvec_csr_t: public csr_t {
   virtual bool unlogged_write(const reg_t val) noexcept override;
  private:
   reg_t val;
+
+ friend class state_t;
 };
 
 // For mcause, scause, and vscause
@@ -247,6 +256,8 @@ class vsstatus_csr_t final: public base_status_csr_t {
   virtual bool unlogged_write(const reg_t val) noexcept override;
  private:
   reg_t val;
+
+ friend class state_t;
 };
 
 typedef std::shared_ptr<vsstatus_csr_t> vsstatus_csr_t_p;
@@ -264,6 +275,8 @@ class mstatus_csr_t final: public base_status_csr_t {
  private:
   reg_t compute_mstatus_initial_value() const noexcept;
   reg_t val;
+
+ friend class state_t;
 };
 
 typedef std::shared_ptr<mstatus_csr_t> mstatus_csr_t_p;
@@ -363,6 +376,8 @@ class mip_or_mie_csr_t: public csr_t {
   reg_t val;
  private:
   virtual reg_t write_mask() const noexcept = 0;
+
+ friend class state_t;
 };
 
 // mip is special because some of the bits are driven by hardware pins
@@ -547,6 +562,9 @@ class wide_counter_csr_t: public csr_t {
   bool is_counting_enabled() const noexcept;
   reg_t val;
   smcntrpmf_csr_t_p config_csr;
+
+ friend class state_t;
+ friend class processor_t;
 };
 
 typedef std::shared_ptr<wide_counter_csr_t> wide_counter_csr_t_p;
@@ -562,6 +580,8 @@ class time_counter_csr_t: public csr_t {
   virtual bool unlogged_write(const reg_t UNUSED val) noexcept override { return false; };
  private:
   reg_t shadow_val;
+
+  friend class state_t;
 };
 
 typedef std::shared_ptr<time_counter_csr_t> time_counter_csr_t_p;
@@ -575,6 +595,8 @@ class proxy_csr_t: public csr_t {
   bool unlogged_write(const reg_t val) noexcept override;
  private:
   csr_t_p delegate;
+
+ friend state_t;
 };
 
 // For a CSR with a fixed, unchanging value
@@ -774,6 +796,8 @@ protected:
   uint8_t index;
  private:
   const reg_t mask;
+
+ friend class state_t;
 };
 
 class sstateen_csr_t: public hstateen_csr_t {
@@ -803,6 +827,8 @@ class stimecmp_csr_t: public basic_csr_t {
   virtual bool unlogged_write(const reg_t val) noexcept override;
  private:
   reg_t intr_mask;
+
+ friend state_t;
 };
 
 class virtualized_stimecmp_csr_t: public virtualized_csr_t {

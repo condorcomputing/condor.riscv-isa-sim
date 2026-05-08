@@ -5,11 +5,15 @@
 #include "abstract_device.h"
 #include "abstract_interrupt_controller.h"
 #include "platform.h"
+#include "debug_module.h"
+#include "json.hpp"
 #include <map>
 #include <queue>
 #include <vector>
 #include <utility>
 #include <cassert>
+
+using json = nlohmann::json;
 
 class processor_t;
 class simif_t;
@@ -19,6 +23,9 @@ class bus_t : public abstract_device_t {
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
   void add_device(reg_t addr, abstract_device_t* dev);
+  json checkpoint(std::string tag);
+  void checkpoint_restore(json j) override;
+  void checkpoint_restore(json j, std::string file_path="");
 
   std::pair<reg_t, abstract_device_t*> find_device(reg_t addr);
 
@@ -56,6 +63,7 @@ class mem_t : public abstract_mem_t {
   char* contents(reg_t addr) override;
   reg_t size() override { return sz; }
   void dump(std::ostream& o) override;
+  void checkpoint_restore(std::istream& in);
 
  private:
   bool load_store(reg_t addr, size_t len, uint8_t* bytes, bool store);
@@ -73,6 +81,24 @@ class clint_t : public abstract_device_t {
   void tick(reg_t rtc_ticks) override;
   uint64_t get_mtimecmp(reg_t hartid) { return mtimecmp[hartid]; }
   uint64_t get_mtime() { return mtime; }
+  json checkpoint() {
+    json j;
+    j["freq_hz"] = freq_hz;
+    j["real_time"] = real_time;
+    j["real_time_ref_secs"] = real_time_ref_secs;
+    j["real_time_ref_usecs"] = real_time_ref_usecs;
+    j["mtime"] = mtime;
+    j["mtimecmp"] = mtimecmp[0];
+    return j;
+  }
+  void checkpoint_restore(json j) {
+    freq_hz = j["freq_hz"];
+    real_time = j["real_time"];
+    real_time_ref_secs = j["real_time_ref_secs"];
+    real_time_ref_usecs = j["real_time_ref_usecs"];
+    mtime = j["mtime"];
+    mtimecmp[0] = j["mtimecmp"];
+  }
  private:
   typedef uint64_t mtime_t;
   typedef uint64_t mtimecmp_t;
@@ -101,6 +127,29 @@ struct plic_context_t {
   uint32_t pending[PLIC_MAX_DEVICES/32] {};
   uint8_t pending_priority[PLIC_MAX_DEVICES] {};
   uint32_t claimed[PLIC_MAX_DEVICES/32] {};
+
+  json checkpoint() {
+    json j;
+    j["mmode"] = mmode;
+    j["priority_threshold"] = priority_threshold;
+    j["enable"] = std::vector<uint32_t>(enable, enable+PLIC_MAX_DEVICES/32);;
+    j["pending"] = std::vector<uint32_t>(pending, pending+PLIC_MAX_DEVICES/32);
+    j["pending_priority"] = std::vector<uint8_t>(pending_priority, pending_priority+PLIC_MAX_DEVICES);
+    j["claimed"] = std::vector<uint32_t>(claimed, claimed+PLIC_MAX_DEVICES/32);
+    return j;
+  }
+  void checkpoint_restore(json j) {
+    mmode = j["mmode"];
+    priority_threshold = j["priority_threshold"];
+    std::vector<uint32_t> _enable = j["enable"];
+    std::copy(_enable.begin(), _enable.end(), enable);
+    std::vector<uint32_t> _pending = j["pending"];
+    std::copy(_pending.begin(), _pending.end(), pending);
+    std::vector<uint8_t> _pending_priority = j["pending_priority"];
+    std::copy(_pending_priority.begin() , _pending_priority.end(), pending_priority);
+    std::vector<uint32_t> _claimed = j["claimed"];
+    std::copy(_claimed.begin(), _claimed.end(), claimed);
+  }
 };
 
 class plic_t : public abstract_device_t, public abstract_interrupt_controller_t {
@@ -110,6 +159,30 @@ class plic_t : public abstract_device_t, public abstract_interrupt_controller_t 
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
   void set_interrupt_level(uint32_t id, int lvl) override;
   size_t size() { return PLIC_SIZE; }
+  json checkpoint() {
+    json j;
+    for (size_t i=0; i<contexts.size(); i++) {
+      j["contexts_"+std::to_string(i)] = contexts[i].checkpoint();
+    }
+    j["num_ids"] = num_ids;
+    j["num_ids_word"] = num_ids_word;
+    j["max_prio"] = max_prio;
+    j["priority"] = std::vector<uint8_t>(priority, priority + PLIC_MAX_DEVICES);
+    j["level"] = std::vector<uint32_t>(level, level+(PLIC_MAX_DEVICES/32));
+    return j;
+  }
+  void checkpoint_restore(json j) {
+    for (size_t i=0; i<contexts.size(); i++) {
+      contexts[i].checkpoint_restore(j["contexts_"+std::to_string(i)]);
+    }
+    num_ids = j["num_ids"];
+    num_ids_word = j["num_ids_word"];
+    max_prio = j["max_prio"];
+    std::vector<uint8_t> _priority = j["priority"];
+    std::copy(_priority.begin(), _priority.end(), priority);
+    std::vector<uint32_t> _level = j["level"];
+    std::copy(_level.begin(), _level.end(), level);
+  }
  private:
   std::vector<plic_context_t> contexts;
   uint32_t num_ids;

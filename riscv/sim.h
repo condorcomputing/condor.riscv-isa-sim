@@ -9,6 +9,7 @@
 #include "log_file.h"
 #include "processor.h"
 #include "simif.h"
+#include "json.hpp"
 
 #include <fesvr/htif.h>
 #include <vector>
@@ -16,6 +17,8 @@
 #include <string>
 #include <memory>
 #include <sys/types.h>
+
+using json = nlohmann::json;
 
 class mmu_t;
 class remote_bitbang_t;
@@ -42,8 +45,10 @@ public:
   int run();
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_quiet_mode(bool value);
   void add_device(reg_t addr, std::shared_ptr<abstract_device_t> dev);
 
+  bool in_quiet_mode() { return quiet_mode_is_set; }
   // Configure logging
   //
   // If enable_log is true, an instruction trace will be generated. If
@@ -94,9 +99,12 @@ private:
   size_t current_proc;
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
+  bool quiet_mode_is_set{false}; // true => only warn/errs to console
   bool log;
   remote_bitbang_t* remote_bitbang;
   std::optional<std::function<void()>> next_interactive_action;
+  reg_t steps_remaining;
+  bool checkpoint_restored {false};
 
   // memory-mapped I/O routines
   virtual char* addr_to_mem(reg_t paddr) override;
@@ -155,6 +163,10 @@ public:
   // enumerate processors, which segfaults if procs hasn't been initialized
   // yet.
   debug_module_t debug_module;
+
+  json checkpoint(std::string tag);
+  void checkpoint_restore(std::string file);
+  void checkpoint_restore(json j, std::string file_path="");
 };
 
 extern volatile bool ctrlc_pressed;

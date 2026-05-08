@@ -8,6 +8,7 @@
 #include "remote_bitbang.h"
 #include "cachesim.h"
 #include "extension.h"
+#include "stf_handler.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdexcept>
@@ -20,7 +21,11 @@
 #include <limits>
 #include <cinttypes>
 #include <sstream>
+#include <chrono>
 #include "../VERSION"
+#include <sysexits.h>
+
+using namespace std::chrono;
 
 static void help(int exit_code = 1)
 {
@@ -61,6 +66,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --extlib=<name>       Shared library to load\n");
   fprintf(stderr, "                        This flag can be used multiple times.\n");
   fprintf(stderr, "  --rbb-port=<port>     Listen on <port> for remote bitbang connection\n");
+  fprintf(stderr, "  --quiet               No info console messages, only warnings and errors\n");
   fprintf(stderr, "  --dump-dts            Print device tree string and exit\n");
   fprintf(stderr, "  --dtb=<path>          Use specified device tree blob [default: auto-generate]\n");
   fprintf(stderr, "  --disable-dtb         Don't write the device tree blob into memory\n");
@@ -84,7 +90,19 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
+  fprintf(stderr, "  ------------------------------------------------------------------------------\n");
+  fprintf(stderr, "  Checkpoint save and restore options\n");
+  fprintf(stderr, "  ------------------------------------------------------------------------------\n");
+  fprintf(stderr, "  --checkpoint_instruction=<n>   Save checkpoint after executing instruction n.\n");
+  fprintf(stderr, "                                    (May be specified multiple times.)\n");
+  fprintf(stderr, "  --checkpoint_macro_enable      Save checkpoint after executing the checkpoint\n");
+  fprintf(stderr, "                                    macro instruction (xor x0, x2, x2).\n");
+  fprintf(stderr, "  --checkpoint_interval=<n>      Save checkpoints at periodic simpoint interval boundaries.\n");
+  fprintf(stderr, "                                    (Use with \"--simpoint_size\".)\n");
+  fprintf(stderr, "  --restore_checkpoint=<file>    Restore checkpoint from <file>.\n");
 
+  bb_tracer_options::bbv_options_help();
+  stfhandler->stf_help();
   exit(exit_code);
 }
 
@@ -321,6 +339,7 @@ int main(int argc, char** argv)
   bool log = false;
   bool UNUSED socket = false;  // command line option -s
   bool dump_dts = false;
+  bool quiet_mode = false;
   bool dtb_enabled = true;
   const char* kernel = NULL;
   reg_t kernel_offset, kernel_size;
@@ -340,6 +359,7 @@ int main(int argc, char** argv)
   reg_t blocksz = 64;
   debug_module_config_t dm_config;
   cfg_arg_t<size_t> nprocs(1);
+  std::string checkpoint_file {""};
 
   cfg_t cfg;
 
@@ -395,6 +415,7 @@ int main(int argc, char** argv)
   parser.option(0, "device", 1, device_parser);
   parser.option(0, "extension", 1, [&](const char* s){extensions.push_back(find_extension(s));});
   parser.option(0, "dump-dts", 0, [&](const char UNUSED *s){dump_dts = true;});
+  parser.option(0, "quiet",       0, [&](const char UNUSED *s){quiet_mode = true;});
   parser.option(0, "disable-dtb", 0, [&](const char UNUSED *s){dtb_enabled = false;});
   parser.option(0, "dtb", 1, [&](const char *s){dtb_file = s;});
   parser.option(0, "kernel", 1, [&](const char* s){kernel = s;});
@@ -450,12 +471,33 @@ int main(int argc, char** argv)
       exit(-1);
     }
   });
+  parser.option(0, "checkpoint_interval", 1, [&](const char *s){cfg.checkpoint_interval = atoul_safe(s);});
+  parser.option(0, "checkpoint_instruction", 1, [&](const char *s){cfg.checkpoint_instructions.push_back(atoul_safe(s));});
+  parser.option(0, "checkpoint_macro_enable", 0, [&](const char UNUSED *s){cfg.checkpoint_macro_enable = true;});
+  parser.option(0, "restore_checkpoint", 1, [&](const char *s){checkpoint_file = s;});
+
+  // BBV capture options
+  bb_tracer_options::set_options(parser);
+
+  //stf_trace options
+  stfhandler->set_options(parser);
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
-  if (!*argv1)
+  if (checkpoint_file != "") {
+    htif_args.insert(htif_args.begin(),"true");
+    htif_args.insert(htif_args.begin(),"--checkpoint-restore");
+  }
+
+  if ((checkpoint_file == "" && !*argv1) ||
+    !stfhandler->option_checks(cfg,
+      bb_tracer_options::en_bbv,
+      (cfg.checkpoint_macro_enable || cfg.checkpoint_instructions.size() || cfg.checkpoint_interval)
+    )
+  ) {
     help();
+  }
 
   std::vector<std::pair<reg_t, abstract_mem_t*>> mems =
       make_mems(cfg.mem_layout);
@@ -541,8 +583,50 @@ int main(int argc, char** argv)
   s.set_debug(debug);
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
+  s.set_quiet_mode(quiet_mode);
 
-  auto return_code = s.run();
+  if (checkpoint_file != "") {
+    json j;
+    if (!check_file_exists(checkpoint_file.c_str())) {
+      std::cerr << "-E checkpoint restore file not found: " << checkpoint_file << std::endl;
+      exit(EX_NOINPUT);
+    }
+    std::cerr << "Running checkpoint restore from " << checkpoint_file << std::endl;
+    std::ifstream in(checkpoint_file);
+    if (!in) {
+        std::cerr << "-E Failed to open checkpoint file for reading\n";
+    } else {
+        in >> j;
+    }
+
+    std::string file_path = std::filesystem::path(checkpoint_file).parent_path().string();
+    s.checkpoint_restore(j, file_path);
+  }
+
+  auto exe_start = high_resolution_clock::now();
+
+  int return_code = 0;
+  try{
+    return_code = s.run();
+  }
+  catch(bb_ctrl::simpoint_terminate &e){
+    // display cause of termination and let simulator gracefully close
+    std::cout << e.what();
+    return_code = 0;
+  }
+  catch(stf_trace_complete &e) {
+    std::cout << e.what();
+    return_code = 0;
+  }
+
+  if(stfhandler->stf_writer_enabled()) {
+    stfhandler->close_trace();
+  }
+
+  // FIXME
+  if (stfhandler->trace_file_name != "" || bb_tracer_options::en_bbv || stfhandler->stats_file_name != "exe_stats.json") {
+    stfhandler->report_stats(s,cfg,exe_start);
+  }
 
   for (auto& mem : mems)
     delete mem.second;

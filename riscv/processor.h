@@ -17,6 +17,7 @@
 #include "triggers.h"
 #include "../fesvr/memif.h"
 #include "vector_unit.h"
+#include "bb_tracer.h"
 
 #define FIRST_HPMCOUNTER 3
 #define N_HPMCOUNTERS 29
@@ -28,6 +29,8 @@ class simif_t;
 class trap_t;
 class extension_t;
 class disassembler_t;
+class bb_tracer;
+struct StfHandler;
 
 reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
 
@@ -191,7 +194,12 @@ struct state_t
 
   elp_t elp;
 
+  bool taken_branch_flag;
+
   bool critical_error;
+
+  json checkpoint();
+  void checkpoint_restore(json cp);
 
  private:
   void csr_init(processor_t* const proc, reg_t max_isa);
@@ -253,8 +261,13 @@ public:
 
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_quiet_mode(bool value);
+
   void enable_log_commits();
   bool get_log_commits_enabled() const { return log_commits_enabled; }
+
+  bool get_log_or_stf_commits_enabled() const;
+
   void reset();
   void step(size_t n); // run for n cycles
   void put_csr(int which, reg_t val);
@@ -360,6 +373,7 @@ public:
   void set_pmp_num(reg_t pmp_num);
   void set_pmp_granularity(reg_t pmp_granularity);
   void set_mmu_capability(int cap);
+  bool in_quiet_mode() { return quiet_mode_is_set;}
 
   const char* get_symbol(uint64_t addr);
 
@@ -367,6 +381,20 @@ public:
   bool is_waiting_for_interrupt() { return in_wfi; };
 
   void check_if_lpad_required();
+
+  uint64_t get_last_pc() { return last_pc; }
+
+  bb_tracer& get_bb_tracer() {return m_bb_tracer;}
+
+  void simpoint_csr_write_notify(const reg_t value);
+  std::shared_ptr<StfHandler> get_stf_handler();
+  uint64_t get_executed_insns();
+  uint64_t get_executed_umode_insns();
+  uint64_t get_executed_roi_umode_insns();
+
+  json checkpoint() override;
+  void checkpoint_restore(json j) override;
+  static constexpr uint32_t _CHECKPOINT_MACRO = 0x00214033; //xor x0,x2,x2
 
 private:
   const isa_parser_t isa;
@@ -380,6 +408,7 @@ private:
   uint32_t id;
   unsigned xlen;
   bool histogram_enabled;
+  bool quiet_mode_is_set{false};
   bool log_commits_enabled;
   FILE *log_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
@@ -387,6 +416,9 @@ private:
   bool in_wfi;
   bool check_triggers_icount;
   std::vector<bool> impl_table;
+  bb_tracer m_bb_tracer;
+  reg_t steps_remaining;
+  bool checkpoint_restored{false};
 
   // Note: does not include single-letter extensions in misa
   std::bitset<NUM_ISA_EXTENSIONS> extension_enable_table;
@@ -416,6 +448,7 @@ private:
   friend class clint_t;
   friend class plic_t;
   friend class extension_t;
+  friend class bb_tracer;
 
   void parse_priv_string(const char*);
   void build_opcode_map();
@@ -424,6 +457,11 @@ private:
 
   // Track repeated executions for processor_t::disasm()
   uint64_t last_pc, last_bits, executions;
+  void maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t bits, reg_t instret, reg_t steps_remaining);
+  uint64_t checkpoint_interval {0};
+  std::vector<reg_t> checkpoint_instructions;
+  reg_t next_checkpoint_instruction {0};
+  bool checkpoint_macro_enable {false};
 public:
   entropy_source es; // Crypto ISE Entropy source.
 
