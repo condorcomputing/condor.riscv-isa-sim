@@ -42,13 +42,12 @@ static void commit_log_print_value(FILE *log_file, int width, const void *data)
       fprintf(log_file, "0x%016" PRIx64, *(const uint64_t *)data);
       break;
     default:
-      // max lengh of vector
-      if (((width - 1) & width) == 0) {
-        const uint64_t *arr = (const uint64_t *)data;
+      if (width % 8 == 0) {
+        const uint8_t *arr = (const uint8_t *)data;
 
         fprintf(log_file, "0x");
-        for (int idx = width / 64 - 1; idx >= 0; --idx) {
-          fprintf(log_file, "%016" PRIx64, arr[idx]);
+        for (int idx = width / 8 - 1; idx >= 0; --idx) {
+          fprintf(log_file, "%02" PRIx8, arr[idx]);
         }
       } else {
         abort();
@@ -160,15 +159,29 @@ inline void processor_t::update_histogram(reg_t pc)
 }
 
 void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, reg_t instret, reg_t steps_remaining) {
-   if (!(checkpoint_interval || next_checkpoint_instruction || checkpoint_macro_enable)) {
+   if (!(checkpoint_interval || next_checkpoint_instruction || checkpoint_macro_enable || async_checkpoint_requested)) {
      return;
    }
 
    uint64_t executed_roi_umode_insns = stfhandler->get_executed_roi_umode_insns();
+   //uint64_t executed_roi_umode_insns = stfhandler->get_executed_insns();
+
+   if (checkpoint_interval && executed_roi_umode_insns && !bb_tracer_options::en_bbv) {
+      if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
+        m_bb_tracer.log_simpoint_warmup_insn_track(pc);
+      } else if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == 1) {
+        m_bb_tracer.log_simpoint_start_track(pc);
+      }
+
+      if (executed_roi_umode_insns % checkpoint_interval == 0) {
+        m_bb_tracer.log_simpoint_end_insn_track(pc);
+      }
+   }
 
    if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
        (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
-       (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0))) {
+       (checkpoint_interval && executed_roi_umode_insns && (executed_roi_umode_insns % checkpoint_interval == 0)) ||
+       async_checkpoint_requested) {
 
      this->steps_remaining = steps_remaining;
 
@@ -185,9 +198,17 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
      std::string tag = std::to_string(get_executed_insns());
 
      if ((checkpoint_macro_enable && (insn == _CHECKPOINT_MACRO)) ||
-         (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction))) {
+         (next_checkpoint_instruction && (get_executed_insns() == next_checkpoint_instruction)) ||
+         async_checkpoint_requested) {
+
+        if (async_checkpoint_requested) {
+          tag = "async_" + tag;
+          async_checkpoint_requested = false;
+        }
+
         sim->checkpoint(tag);
-        if (checkpoint_instructions.size()) {
+
+        if ((get_executed_insns() == next_checkpoint_instruction) && (checkpoint_instructions.size())) {
           next_checkpoint_instruction = checkpoint_instructions.back();
           checkpoint_instructions.pop_back();
         } else {
@@ -204,18 +225,6 @@ void processor_t::maybe_checkpoint_interval(reg_t pc, reg_t npc, uint32_t insn, 
      get_state()->pc = stash_pc; // or pc?
      state.minstret->val = stash_minstret;
      state.mcycle->val = stash_mcycle;
-   }
-
-   if (checkpoint_interval && executed_roi_umode_insns && !bb_tracer_options::en_bbv) {
-      if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == (bb_tracer_options::simpoint_size - bb_tracer_options::warmup_size + 1)) {
-        m_bb_tracer.log_simpoint_warmup_insn_track(pc);
-      } else if (executed_roi_umode_insns % bb_tracer_options::simpoint_size == 1) {
-        m_bb_tracer.log_simpoint_start_track(pc);
-      }
-
-      if (executed_roi_umode_insns % checkpoint_interval == 0) {
-        m_bb_tracer.log_simpoint_end_insn_track(pc);
-      }
    }
 }
 
@@ -253,8 +262,9 @@ static inline reg_t execute_insn_logged(processor_t* p, state_t* state, reg_t pc
       if (p->get_log_commits_enabled()) {
         commit_log_print_insn(p, pc, fetch.insn);
       }
-    }
+     }
   } catch (wait_for_interrupt_t &t) {
+      stfhandler->trace_insn(p,fetch,pc,npc,"SLOW LOOP");
       if (p->get_log_commits_enabled()) {
         commit_log_print_insn(p, pc, fetch.insn);
       }
@@ -278,7 +288,7 @@ static inline reg_t execute_insn_logged(processor_t* p, state_t* state, reg_t pc
   return npc_or_serialize_flag;
 }
 
-bool processor_t::slow_path()
+bool processor_t::slow_path() 
 {
   return debug || state.single_step != state.STEP_NONE || state.debug_mode ||
          log_commits_enabled || histogram_enabled || in_wfi || 
@@ -288,6 +298,8 @@ bool processor_t::slow_path()
 // fetch/decode/execute loop
 void processor_t::step(size_t n)
 {
+  mmu_t* _mmu = mmu;
+
   if (!state.debug_mode) {
     if (halt_request == HR_REGULAR) {
       enter_debug_mode(DCSR_CAUSE_DEBUGINT, 0);
@@ -296,6 +308,15 @@ void processor_t::step(size_t n)
     } else if (halt_on_reset) {
       halt_on_reset = false;
       enter_debug_mode(DCSR_CAUSE_HALT, 0);
+    }
+  }
+
+  if (extension_enabled(EXT_ZICCID)) {
+    // Ziccid requires stores eventually become visible to instruction fetch,
+    // so periodically flush the I$
+    if (ziccid_flush_count-- == 0) {
+      ziccid_flush_count += ZICCID_FLUSH_PERIOD;
+      _mmu->flush_icache();
     }
   }
 
@@ -310,6 +331,7 @@ void processor_t::step(size_t n)
       state.v_changed = false;
     } else { checkpoint_restored = false; }
     insn_fetch_t fetch;
+
 
     #define advance_pc() \
       if (unlikely(invalid_pc(pc))) { \
@@ -465,10 +487,6 @@ void processor_t::step(size_t n)
     }
     catch (triggers::matched_t& t)
     {
-      if (mmu->matched_trigger) {
-        delete mmu->matched_trigger;
-        mmu->matched_trigger = NULL;
-      }
       take_trigger_action(t.action, t.address, pc, t.gva);
     }
     catch(trap_debug_mode&)
@@ -484,8 +502,12 @@ void processor_t::step(size_t n)
       // allows us to switch to other threads only once per idle loop in case
       // there is activity.
       n = ++instret;
-      maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, 0);
-      stfhandler->incr_executed_instructions(this);
+
+      if (!in_wfi) {
+         in_wfi = true;
+         maybe_checkpoint_interval(ppc, pc, fetch.insn.bits(), instret, 0);
+         stfhandler->incr_executed_instructions(this);
+      }
       in_wfi = true;
     }
     catch(stf_trace_complete &e) {
@@ -496,12 +518,10 @@ void processor_t::step(size_t n)
       throw;
     }
 
-    if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_IR))
-      state.minstret->bump(instret);
+    state.minstret->bump((state.mcountinhibit->read() & MCOUNTINHIBIT_IR) ? 0 : instret);
 
     // Model a hart whose CPI is 1.
-    if (!(state.mcountinhibit->read() & MCOUNTINHIBIT_CY))
-      state.mcycle->bump(instret);
+    state.mcycle->bump((state.mcountinhibit->read() & MCOUNTINHIBIT_CY) ? 0 : instret);
 
     n -= instret;
   }

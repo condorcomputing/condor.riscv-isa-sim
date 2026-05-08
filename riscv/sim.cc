@@ -25,12 +25,19 @@
 using json = nlohmann::json;
 
 volatile bool ctrlc_pressed = false;
+extern std::unique_ptr<sim_t> sim_p;
 static void handle_signal(int sig)
 {
   if (ctrlc_pressed)
     exit(-1);
   ctrlc_pressed = true;
   signal(sig, &handle_signal);
+}
+
+static void handle_usr1_signal(int sig)
+{
+  sim_p->request_async_checkpoint();
+  signal(sig, &handle_usr1_signal);
 }
 
 const size_t sim_t::INTERLEAVE;
@@ -47,13 +54,15 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
              const char *log_path,
              bool dtb_enabled, const char *dtb_file,
              bool socket_enabled,
-             FILE *cmd_file) // needed for command line option --cmd
+             FILE *cmd_file, // needed for command line option --cmd
+             std::optional<unsigned long long> instruction_limit)
   : htif_t(args),
     cfg(cfg),
     mems(mems),
     dtb_enabled(dtb_enabled),
     log_file(log_path),
     cmd_file(cmd_file),
+    instruction_limit(instruction_limit),
     sout_(nullptr),
     current_step(0),
     current_proc(0),
@@ -64,6 +73,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     debug_module(this, dm_config)
 {
   signal(SIGINT, &handle_signal);
+  signal(SIGUSR1, &handle_usr1_signal);
 
   sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
@@ -97,7 +107,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   }
 #endif
 
-  debug_mmu = new mmu_t(this, cfg->endianness, NULL);
+  debug_mmu = new mmu_t(this, cfg->endianness, NULL, cfg->cache_blocksz);
 
   // When running without using a dtb, skip the fdt-based configuration steps
   if (!dtb_enabled) {
@@ -118,10 +128,15 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   // that's not bus-accessible), but it should handle the normal use cases. In
   // particular, the default device tree configuration that you get without
   // setting the dtb_file argument has one.
+  std::vector<std::string> ns16550_args;
+  if (cfg->disable_stdin) {
+     ns16550_args.push_back("disable_stdin");
+  }
+
   std::vector<device_factory_sargs_t> device_factories = {
-    {clint_factory, {}}, // clint must be element 0
-    {plic_factory, {}}, // plic must be element 1
-    {ns16550_factory, {}}};
+    {clint_factory, {}},
+    {plic_factory, {}},
+    {ns16550_factory, ns16550_args}};
   device_factories.insert(device_factories.end(),
                           plugin_device_factories.begin(),
                           plugin_device_factories.end());
@@ -138,7 +153,6 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     dtb = strstream.str();
     dts = dtb_to_dts(dtb);
   } else {
-    std::pair<reg_t, reg_t> initrd_bounds = cfg->initrd_bounds;
     std::string device_nodes;
     for (const device_factory_sargs_t& factory_sargs: device_factories) {
       const device_factory_t* factory = factory_sargs.first;
@@ -239,6 +253,8 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
       procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SBARE);
     }
 
+    procs[cpu_idx]->reset();
+
     cpu_idx++;
   }
 
@@ -253,10 +269,15 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
       std::shared_ptr<abstract_device_t> dev_ptr(device);
       add_device(device_base, dev_ptr);
 
-      if (i == 0) // clint_factory
+      if (dynamic_cast<clint_t*>(&*dev_ptr)) {
+        assert(!clint);
         clint = std::static_pointer_cast<clint_t>(dev_ptr);
-      else if (i == 1) // plic_factory
+      }
+
+      if (dynamic_cast<plic_t*>(&*dev_ptr)) {
+        assert(!plic);
         plic = std::static_pointer_cast<plic_t>(dev_ptr);
+      }
     }
   }
 }
@@ -345,22 +366,16 @@ void sim_t::set_procs_debug(bool value)
     procs[i]->set_debug(value);
 }
 
-static bool paddr_ok(reg_t addr)
-{
-  static_assert(MAX_PADDR_BITS == 8 * sizeof(addr));
-  return true;
-}
-
 bool sim_t::mmio_load(reg_t paddr, size_t len, uint8_t* bytes)
 {
-  if (paddr + len < paddr || !paddr_ok(paddr + len - 1))
+  if (paddr + len < paddr)
     return false;
   return bus.load(paddr, len, bytes);
 }
 
 bool sim_t::mmio_store(reg_t paddr, size_t len, const uint8_t* bytes)
 {
-  if (paddr + len < paddr || !paddr_ok(paddr + len - 1))
+  if (paddr + len < paddr)
     return false;
   return bus.store(paddr, len, bytes);
 }
@@ -411,12 +426,9 @@ void sim_t::set_rom()
 }
 
 char* sim_t::addr_to_mem(reg_t paddr) {
-  if (!paddr_ok(paddr))
-    return NULL;
-  auto desc = bus.find_device(paddr);
+  auto desc = bus.find_device(paddr >> PGSHIFT << PGSHIFT, PGSIZE);
   if (auto mem = dynamic_cast<abstract_mem_t*>(desc.second))
-    if (paddr - desc.first < mem->size())
-      return mem->contents(paddr - desc.first);
+    return mem->contents(paddr - desc.first);
   return NULL;
 }
 
@@ -438,13 +450,31 @@ void sim_t::idle()
   if (done())
     return;
 
-  if (debug || ctrlc_pressed)
+  if (debug || ctrlc_pressed) {
+    if (ctrlc_pressed) {
+       if (cfg->exit_on_sigint) {
+         std::cerr << "In sim_t::idle(), and ctrlc_pressed is true. Exit on sigint is set. Exiting." << std::endl;
+         exit(-1);
+       }
+       std::cerr << "In sim_t::idle(), and ctrlc_pressed is true. Going interactive." << std::endl;
+    }
     interactive();
+  }
   else {
     if (checkpoint_restored) {
       step(steps_remaining);
       checkpoint_restored = false;
     } else {
+      if (instruction_limit.has_value()) {
+        if (*instruction_limit < INTERLEAVE) {
+          // Final step.
+          step(*instruction_limit);
+          htif_exit(0);
+          *instruction_limit = 0;
+          return;
+        }
+        *instruction_limit -= INTERLEAVE;
+      }
       step(INTERLEAVE);
     }
   }
@@ -501,6 +531,12 @@ json sim_t::checkpoint(std::string tag) {
   }
 
   return j;
+}
+
+void sim_t::request_async_checkpoint() {
+  if (procs.size()) {
+    procs[0]->request_async_checkpoint();
+  }
 }
 
 void sim_t::checkpoint_restore(std::string file) {

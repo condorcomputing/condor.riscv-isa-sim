@@ -38,10 +38,10 @@ public:
         const debug_module_config_t &dm_config, const char *log_path,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
-        FILE *cmd_file); // needed for command line option --cmd
+        FILE *cmd_file, // needed for command line option --cmd
+        std::optional<unsigned long long> instruction_limit);
   ~sim_t();
 
-  // run the simulation to completion
   int run();
   void set_debug(bool value);
   void set_histogram(bool value);
@@ -90,6 +90,8 @@ private:
 
   FILE *cmd_file; // pointer to debug command input file
 
+  std::optional<unsigned long long> instruction_limit;
+
   socketif_t *socketif;
   std::ostream sout_; // used for socket and terminal interface
 
@@ -106,8 +108,13 @@ private:
   reg_t steps_remaining;
   bool checkpoint_restored {false};
 
-  // memory-mapped I/O routines
+  // If padd corresponds to memory (as opposed to an I/O device), return a
+  // host pointer corresponding to paddr.
+  // For these purposes, only memories that include the entire base page
+  // surrounding paddr are considered; smaller memories are treated as I/O.
   virtual char* addr_to_mem(reg_t paddr) override;
+
+  // memory-mapped I/O routines
   virtual bool mmio_load(reg_t paddr, size_t len, uint8_t* bytes) override;
   virtual bool mmio_store(reg_t paddr, size_t len, const uint8_t* bytes) override;
   void set_rom();
@@ -165,6 +172,7 @@ public:
   debug_module_t debug_module;
 
   json checkpoint(std::string tag);
+  void request_async_checkpoint();
   void checkpoint_restore(std::string file);
   void checkpoint_restore(json j, std::string file_path="");
 };

@@ -29,18 +29,38 @@ void vectorUnit_t::vectorUnit_t::reset()
 
 reg_t vectorUnit_t::vectorUnit_t::set_vl(int rd, int rs1, reg_t reqVL, reg_t newType)
 {
-  int new_vlmul = 0;
   if (vtype->read() != newType) {
+    int new_vlmul = int8_t(extract64(newType, 0, 3) << 5) >> 5;
+    auto old_vlmax = vlmax;
+
     vsew = 1 << (extract64(newType, 3, 3) + 3);
-    new_vlmul = int8_t(extract64(newType, 0, 3) << 5) >> 5;
     vflmul = new_vlmul >= 0 ? 1 << new_vlmul : 1.0 / (1 << -new_vlmul);
     vlmax = (VLEN/vsew) * vflmul;
     vta = extract64(newType, 6, 1);
     vma = extract64(newType, 7, 1);
+    altfmt = extract64(newType, 8, 1);
+
+    bool ill_altfmt = true;
+    if (altfmt) {
+      if (p->extension_enabled(EXT_ZVQBDOT8I) && vsew == 8)
+        ill_altfmt = false;
+      else if (p->extension_enabled(EXT_ZVQBDOT16I) && vsew == 16)
+        ill_altfmt = false;
+      else if (p->extension_enabled(EXT_ZVFWBDOT16BF) && vsew == 16)
+        ill_altfmt = false;
+      else if (p->extension_enabled(EXT_ZVQLDOT8I) && vsew == 8)
+        ill_altfmt = false;
+      else if (p->extension_enabled(EXT_ZVQLDOT16I) && vsew == 16)
+        ill_altfmt = false;
+      else if (p->extension_enabled(EXT_ZVFWLDOT16BF) && vsew == 16)
+        ill_altfmt = false;
+    }
 
     vill = !(vflmul >= 0.125 && vflmul <= 8)
            || vsew > std::min(vflmul, 1.0f) * ELEN
-           || (newType >> 8) != 0;
+           || (newType >> 9) != 0
+           || (altfmt && ill_altfmt)
+           || (rd == 0 && rs1 == 0 && old_vlmax != vlmax);
 
     if (vill) {
       vlmax = 0;
@@ -54,7 +74,7 @@ reg_t vectorUnit_t::vectorUnit_t::set_vl(int rd, int rs1, reg_t reqVL, reg_t new
   if (vlmax == 0) {
     vl->write_raw(0);
   } else if (rd == 0 && rs1 == 0) {
-    vl->write_raw(std::min(vl->read(), vlmax));
+    ; // retain current VL
   } else if (rd != 0 && rs1 == 0) {
     vl->write_raw(vlmax);
   } else if (rs1 != 0) {
@@ -62,7 +82,6 @@ reg_t vectorUnit_t::vectorUnit_t::set_vl(int rd, int rs1, reg_t reqVL, reg_t new
   }
 
   vstart->write_raw(0);
-  setvl_count++;
   return vl->read();
 }
 
@@ -77,7 +96,6 @@ template<class T> T& vectorUnit_t::elt(reg_t vReg, reg_t n, bool UNUSED is_write
   // bits when changing SEW, thus we need to index from the end on BE.
   n ^= elts_per_reg - 1;
 #endif
-  reg_referenced[vReg] = 1;
 
   if (unlikely(p->get_log_or_stf_commits_enabled() && is_write))
     p->get_state()->log_reg_write[((vReg) << 4) | 2] = {0, 0};
@@ -126,8 +144,6 @@ vectorUnit_t::elt_group(reg_t vReg, reg_t n, bool UNUSED is_write) {
 
   // Element groups per register groups
   for (reg_t vidx = reg_first; vidx <= reg_last; ++vidx) {
-      reg_referenced[vidx] = 1;
-
       if (unlikely(p->get_log_or_stf_commits_enabled() && is_write)) {
           p->get_state()->log_reg_write[(vidx << 4) | 2] = {0, 0};
       }

@@ -27,6 +27,8 @@
 
 using namespace std::chrono;
 
+std::unique_ptr<sim_t> sim_p;
+
 static void help(int exit_code = 1)
 {
   fprintf(stderr, "Spike RISC-V ISA Simulator " SPIKE_VERSION "\n\n");
@@ -84,12 +86,15 @@ static void help(int exit_code = 1)
       "required for a DMI access [default 0]\n");
   fprintf(stderr, "  --dm-abstract-rti=<n> Number of Run-Test/Idle cycles "
       "required for an abstract command to execute [default 0]\n");
-  fprintf(stderr, "  --dm-no-hasel         Debug module supports hasel\n");
+  fprintf(stderr, "  --dm-no-hasel         Debug module won't support hasel\n");
   fprintf(stderr, "  --dm-no-abstract-csr  Debug module won't support abstract CSR access\n");
   fprintf(stderr, "  --dm-no-abstract-fpr  Debug module won't support abstract FPR access\n");
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
+  fprintf(stderr, "  --instructions=<n>    Stop after n instructions\n");
+  fprintf(stderr, "  --exit_on_sigint      Exit on sigint/ctl-c (rather than going interactive.)\n");
+  fprintf(stderr, "  --disable_stdin       UART device will not read from stdin\n");
   fprintf(stderr, "  ------------------------------------------------------------------------------\n");
   fprintf(stderr, "  Checkpoint save and restore options\n");
   fprintf(stderr, "  ------------------------------------------------------------------------------\n");
@@ -357,6 +362,7 @@ int main(int argc, char** argv)
   bool use_rbb = false;
   unsigned dmi_rti = 0;
   reg_t blocksz = 64;
+  std::optional<unsigned long long> instructions;
   debug_module_config_t dm_config;
   cfg_arg_t<size_t> nprocs(1);
   std::string checkpoint_file {""};
@@ -470,7 +476,13 @@ int main(int argc, char** argv)
         min_blocksz, max_blocksz);
       exit(-1);
     }
+    cfg.cache_blocksz = blocksz;
   });
+  parser.option(0, "instructions", 1, [&](const char* s){
+    instructions = strtoull(s, 0, 0);
+  });
+  parser.option(0, "exit_on_sigint", 0, [&](const char *s){cfg.exit_on_sigint = true;});
+  parser.option(0, "disable_stdin", 0, [&](const char UNUSED *s){cfg.disable_stdin = true;});
   parser.option(0, "checkpoint_interval", 1, [&](const char *s){cfg.checkpoint_interval = atoul_safe(s);});
   parser.option(0, "checkpoint_instruction", 1, [&](const char *s){cfg.checkpoint_instructions.push_back(atoul_safe(s));});
   parser.option(0, "checkpoint_macro_enable", 0, [&](const char UNUSED *s){cfg.checkpoint_macro_enable = true;});
@@ -488,6 +500,8 @@ int main(int argc, char** argv)
   if (checkpoint_file != "") {
     htif_args.insert(htif_args.begin(),"true");
     htif_args.insert(htif_args.begin(),"--checkpoint-restore");
+
+    bb_tracer_options::checkpoint_restore = true;
   }
 
   if ((checkpoint_file == "" && !*argv1) ||
@@ -550,10 +564,14 @@ int main(int argc, char** argv)
     cfg.hartids = default_hartids;
   }
 
-  sim_t s(&cfg, halted,
+
+  sim_p = std::make_unique<sim_t>(&cfg, halted,
       mems, plugin_device_factories, htif_args, dm_config, log_path, dtb_enabled, dtb_file,
       socket,
-      cmd_file);
+      cmd_file,
+      instructions);
+  sim_t& s = *sim_p;
+
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(
       new jtag_dtm_t(&s.debug_module, dmi_rti));
@@ -577,7 +595,6 @@ int main(int argc, char** argv)
     if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
     for (auto e : extensions)
       s.get_core(i)->register_extension(e());
-    s.get_core(i)->get_mmu()->set_cache_blocksz(blocksz);
   }
 
   s.set_debug(debug);

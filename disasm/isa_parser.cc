@@ -1,11 +1,12 @@
 #include "isa_parser.h"
+#include <cstring>
 #include <stdexcept>
 
 static std::string strtolower(const char* str)
 {
-  std::string res;
-  for (const char *r = str; *r; r++)
-    res += std::tolower(*r);
+  std::string res(str);
+  for (char &c : res)
+    c = std::tolower(c);
   return res;
 }
 
@@ -69,7 +70,7 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       // G = IMAFD_Zicsr_Zifencei, but Spike includes the latter two
       // unconditionally, so they need not be explicitly added here.
       isa_string = isa_string.substr(0, 4) + "imafd" + isa_string.substr(5);
-      // Fall through
+      [[fallthrough]];
     case 'i':
       extension_table['I'] = true;
       break;
@@ -97,9 +98,9 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
 
     switch (*p) {
       case 'v': vlen = 128; elen = 64; zvf = true; zvd = true;
-                // even rv32iv implies double float
+                [[fallthrough]];
       case 'q': extension_table['D'] = true;
-                // Fall through
+                [[fallthrough]];
       case 'd': extension_table['F'] = true;
     }
     extension_table[toupper(*p)] = true;
@@ -139,6 +140,10 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       // HINTs encoded in base-ISA instructions are always present.
     } else if (ext_str == "zihintntl") {
       // HINTs encoded in base-ISA instructions are always present.
+    } else if (ext_str == "ziccid") {
+      extension_table[EXT_ZICCID] = true;
+    } else if (ext_str == "ziccif") {
+      // aligned instruction fetch is always atomic in Spike
     } else if (ext_str == "zaamo") {
       extension_table[EXT_ZAAMO] = true;
     } else if (ext_str == "zalrsc") {
@@ -244,6 +249,8 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       extension_table[EXT_SSCOFPMF] = true;
     } else if (ext_str == "svadu") {
       extension_table[EXT_SVADU] = true;
+    } else if (ext_str == "svade") {
+      extension_table[EXT_SVADE] = true;
     } else if (ext_str == "svnapot") {
       extension_table[EXT_SVNAPOT] = true;
     } else if (ext_str == "svpbmt") {
@@ -317,6 +324,22 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       extension_table[EXT_ZVKSED] = true;
     } else if (ext_str == "zvksh") {
       extension_table[EXT_ZVKSH] = true;
+    } else if (ext_str == "zvqdotq") {
+      extension_table[EXT_ZVQDOTQ] = true;
+    } else if (ext_str == "zvqbdot8i") {
+      extension_table[EXT_ZVQBDOT8I] = true;
+    } else if (ext_str == "zvqbdot16i") {
+      extension_table[EXT_ZVQBDOT16I] = true;
+    } else if (ext_str == "zvfwbdot16bf") {
+      extension_table[EXT_ZVFWBDOT16BF] = true;
+    } else if (ext_str == "zvfbdot32f") {
+      extension_table[EXT_ZVFBDOT32F] = true;
+    } else if (ext_str == "zvqldot8i") {
+      extension_table[EXT_ZVQLDOT8I] = true;
+    } else if (ext_str == "zvqldot16i") {
+      extension_table[EXT_ZVQLDOT16I] = true;
+    } else if (ext_str == "zvfwldot16bf") {
+      extension_table[EXT_ZVFWLDOT16BF] = true;
     } else if (ext_str == "zvkt") {
     } else if (ext_str == "sstc") {
         extension_table[EXT_SSTC] = true;
@@ -326,6 +349,10 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       extension_table[EXT_SSCSRIND] = true;
     } else if (ext_str == "smcntrpmf") {
       extension_table[EXT_SMCNTRPMF] = true;
+    } else if (ext_str == "smcdeleg") {
+      extension_table[EXT_SMCDELEG] = true;
+    } else if (ext_str == "ssccfg") {
+      extension_table[EXT_SSCCFG] = true;
     } else if (ext_str == "zimop") {
       extension_table[EXT_ZIMOP] = true;
     } else if (ext_str == "zcmop") {
@@ -355,6 +382,9 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
         bad_isa_string(str, ("Invalid Zvl string: " + ext_str).c_str());
       vlen = std::max(vlen, new_vlen);
     } else if (ext_str.substr(0, 3) == "zve") {
+      if (ext_str.size() != 6) {
+        bad_isa_string(str, ("Invalid Zve string: " + ext_str).c_str());
+      }
       reg_t new_elen;
       try {
         new_elen = safe_stoul(ext_str.substr(3, ext_str.size() - 4));
@@ -373,10 +403,19 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
       if (new_elen != 32 && new_elen != 64)
         bad_isa_string(str, ("Invalid Zve string: " + ext_str).c_str());
       elen = std::max(elen, new_elen);
+      vlen = std::max(vlen, new_elen);
     } else if (ext_str == "ssdbltrp") {
       extension_table[EXT_SSDBLTRP] = true;
     } else if (ext_str == "smdbltrp") {
       extension_table[EXT_SMDBLTRP] = true;
+    } else if (ext_str == "smaia") {
+      extension_table[EXT_SMAIA] = true;
+      extension_table[EXT_SSAIA] = true;
+      extension_table[EXT_SMCSRIND] = true;
+      extension_table[EXT_SSCSRIND] = true;
+    } else if (ext_str == "ssaia") {
+      extension_table[EXT_SSAIA] = true;
+      extension_table[EXT_SSCSRIND] = true;
     } else if (ext_str[0] == 'x') {
       extension_table['X'] = true;
       if (ext_str.size() == 1) {
@@ -424,16 +463,20 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
     bad_isa_string(str, "'Zclsd' extension requires 'Zca' and 'Zilsd' extensions");
   }
 
-  if (extension_table[EXT_ZFBFMIN] && !extension_table['F']) {
+  if (extension_table[EXT_ZFBFMIN] || extension_table[EXT_ZFHMIN]) {
+    extension_table[EXT_INTERNAL_ZFH_MOVE] = true;
+  }
+
+  if (extension_table[EXT_ZFBFMIN] && (!extension_table['F'])) {
     bad_isa_string(str, "'Zfbfmin' extension requires 'F' extension");
   }
 
-  if ((extension_table[EXT_ZVFBFMIN] || extension_table[EXT_ZVFBFWMA]) && !extension_table['V']) {
-    bad_isa_string(str, "'Zvfbfmin/Zvfbfwma' extension requires 'V' extension");
+  if (extension_table[EXT_ZVFBFMIN] && (vlen == 0 || !zvf)) {
+    bad_isa_string(str, "'Zvfbfmin' extension requires 'Zve32f' extension");
   }
 
-  if (extension_table[EXT_ZFBFMIN] || extension_table[EXT_ZVFBFMIN] || extension_table[EXT_ZFHMIN]) {
-    extension_table[EXT_INTERNAL_ZFH_MOVE] = true;
+  if (extension_table[EXT_ZVFBFWMA] && (!extension_table[EXT_ZFBFMIN] || !extension_table[EXT_ZVFBFMIN])) {
+    bad_isa_string(str, "'Zvfbfwma' extension requires 'Zfbfmin' and 'Zvfbfmin' extensions");
   }
 
   if (extension_table[EXT_ZFINX] && extension_table['F']) {
@@ -489,11 +532,7 @@ isa_parser_t::isa_parser_t(const char* str, const char *priv)
 #endif
 
   if (vlen > 4096) {
-    bad_isa_string(str, "Spike does not currently support VLEN > 4096b");
-  }
-
-  if ((vlen != 0) ^ (elen != 0)) {
-    bad_isa_string(str, "Invalid Zvl/Zve configuration");
+    bad_isa_string(str, "Spike does not support VLEN > 4096");
   }
 
   if (extension_table[EXT_ZVFHMIN] && (vlen == 0 || elen == 0 || !zvf)) {

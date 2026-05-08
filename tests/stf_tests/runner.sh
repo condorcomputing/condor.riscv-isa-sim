@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# These need to be in PATH also MAVIS_PATH must be exported
-#
-# Typically
-#   export PATH=/path/to/stf_dump:/path/to/stf_record_dump:$PATH
-#   export MAVIS_PATH=/path/to/stf_tools/mavis
 TRACE_DUMP=stf_dump
 TRACE_RECORD_DUMP=stf_record_dump
 

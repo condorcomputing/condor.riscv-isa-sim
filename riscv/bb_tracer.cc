@@ -28,6 +28,7 @@ bb_tracer::bb_tracer(processor_t* proc, bool en_bbv, const std::string &bb_file_
                                                                   m_heart_id(heart_id),
                                                                   m_en_bbv(en_bbv),
                                                                   m_warmup_size(warmup_size) {
+
     if (m_en_bbv) {
         auto bb_file_name = bb_file_base_name + "_cpu" + std::to_string(m_heart_id);
         m_bb_file.open(bb_file_name, std::ios::out);
@@ -60,7 +61,6 @@ bb_tracer::~bb_tracer() {
 }
 
 void bb_tracer::flush_bb_vector(const uint64_t steps) {
-    static uint64_t instr_cnt{0};
     instr_cnt += steps;
     if (instr_cnt >= m_next_bbv_dump) {
         m_next_bbv_dump += m_simpoint_size;
@@ -73,7 +73,8 @@ void bb_tracer::flush_bb_vector(const uint64_t steps) {
         }
 
         if (!m_bbv.empty()) {
-            m_bb_file << "T";
+            std::ostringstream oss;
+            oss << "T";
             for (const auto& ent: m_bbv) {
                 if (unlikely(bb_tracer_options::encode_bb_ids)) {
                     auto it = m_pc2id.find(ent.first);
@@ -84,13 +85,16 @@ void bb_tracer::flush_bb_vector(const uint64_t steps) {
                     } else {
                         id = it->second;
                     }
-                    m_bb_file << ":" << id << ":" << ent.second << " ";
+                    oss << ":" << id << ":" << ent.second << " ";
                 } else {
-                    m_bb_file << ":" << ent.first << ":" << ent.second << " ";
+                    oss << ":" << ent.first << ":" << ent.second << " ";
                 }
             }
-            m_bb_file << "\n";
+            oss << "\n";
+
+            m_bb_file << oss.str();
             m_bb_file.flush();
+            bbv_lines.push_back(oss.str());
             m_bbv.clear();
         }
 
@@ -236,24 +240,27 @@ void bb_tracer::log_simpoint_end_insn_track(uint64_t pc) {
   }
 
   if (m_bb_tracks_file) {
+    std::ostringstream oss;
     if (m_warmup_size) {
-        m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_warmup_insn_track.total_umode_instr_count << " ";
-        m_bb_tracks_file << std::dec << snippet_warmup_insn_track.roi_instr_count << " ";
-        m_bb_tracks_file << std::hex << snippet_warmup_insn_track.pc << " ";
+        oss << std::dec << snippet_warmup_insn_track.total_instr_count << " ";
+        oss << std::dec << snippet_warmup_insn_track.total_umode_instr_count << " ";
+        oss << std::dec << snippet_warmup_insn_track.roi_instr_count << " ";
+        oss << std::hex << snippet_warmup_insn_track.pc << " ";
     }
 
-    m_bb_tracks_file << std::dec << snippet_start_insn_track.total_instr_count << " ";
-    m_bb_tracks_file << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
-    m_bb_tracks_file << std::dec << snippet_start_insn_track.roi_instr_count << " ";
-    m_bb_tracks_file << std::hex << snippet_start_insn_track.pc << " ";
+    oss << std::dec << snippet_start_insn_track.total_instr_count << " ";
+    oss << std::dec << snippet_start_insn_track.total_umode_instr_count << " ";
+    oss << std::dec << snippet_start_insn_track.roi_instr_count << " ";
+    oss << std::hex << snippet_start_insn_track.pc << " ";
 
-    m_bb_tracks_file << std::dec << snippet_end_insn_track.total_instr_count << " ";
-    m_bb_tracks_file << std::dec << snippet_end_insn_track.total_umode_instr_count << " ";
-    m_bb_tracks_file << std::dec << snippet_end_insn_track.roi_instr_count << " ";
-    m_bb_tracks_file << std::hex << snippet_end_insn_track.pc << std::endl;
+    oss << std::dec << snippet_end_insn_track.total_instr_count << " ";
+    oss << std::dec << snippet_end_insn_track.total_umode_instr_count << " ";
+    oss << std::dec << snippet_end_insn_track.roi_instr_count << " ";
+    oss << std::hex << snippet_end_insn_track.pc << std::endl;
 
+    m_bb_tracks_file << oss.str();
     m_bb_tracks_file.flush();
+    bbv_tracks.push_back(oss.str());
   }
 }
 
@@ -281,11 +288,30 @@ json bb_tracer::checkpoint() {
   j["m_insn_num_roi_started"] = m_insn_num_roi_started;
   j["ppn"] = m_ppn;
 
+  j["m_bbv"] = m_bbv;
+  j["m_pc2id"] = m_pc2id;
+  j["m_next_id"] = m_next_id;
+  j["m_heart_id"] = m_heart_id;
+  j["snippet_warmup_insn_track"] = snippet_warmup_insn_track.checkpoint();
+  j["next_snippet_warmup_insn_track"] = next_snippet_warmup_insn_track.checkpoint();
+  j["snippet_start_insn_track"] = snippet_start_insn_track.checkpoint();
+  j["snippet_end_insn_track"] = snippet_end_insn_track.checkpoint();
+  j["instr_cnt"] = instr_cnt;
+
+  if (bbv_lines.size()) {
+    j["bbv_lines"] = bbv_lines;
+  }
+
+  if (bbv_tracks.size()) {
+    j["bbv_tracks"] = bbv_tracks;
+  }
+
   return j;
 }
 
 void bb_tracer::checkpoint_restore(json j) {
   m_ninst = j["m_ninst"];
+  m_next_bbv_dump = j["m_next_bbv_dump"];
   m_simpoint_roi = j["m_simpoint_roi"];
   m_last_pc = j["m_last_pc"];
   m_simpoint_en_pc = j["m_simpoint_en_pc"];
@@ -293,6 +319,39 @@ void bb_tracer::checkpoint_restore(json j) {
   flush_instr_cnt = j["m_total_insn_in_roi"];
   m_insn_num_roi_started = j["m_insn_num_roi_started"];
   m_ppn = j["ppn"];
+
+  if (j.contains("m_bbv")) {
+     m_bbv = j["m_bbv"];
+     m_pc2id = j["m_pc2id"];
+     m_next_id = j["m_next_id"];
+     m_heart_id = j["m_heart_id"];
+
+     snippet_warmup_insn_track.checkpoint_restore(j["snippet_warmup_insn_track"]);
+     next_snippet_warmup_insn_track.checkpoint_restore(j["next_snippet_warmup_insn_track"]);
+     snippet_start_insn_track.checkpoint_restore(j["snippet_start_insn_track"]);
+     snippet_end_insn_track.checkpoint_restore(j["snippet_end_insn_track"]);
+     instr_cnt = j["instr_cnt"];
+  }
+
+  if (j.contains("bbv_lines")) {
+     bbv_lines = j["bbv_lines"];
+  }
+
+  if (j.contains("bbv_tracks")) {
+     bbv_tracks = j["bbv_tracks"];
+  }
+
+  for (auto s : bbv_lines) {
+    m_bb_file << s;
+    m_bb_file.flush();
+  }
+
+  for (auto s : bbv_tracks) {
+    m_bb_tracks_file << s;
+    m_bb_tracks_file.flush();
+  }
+
+  checkpoint_restored = true;
 }
 
 namespace bb_tracer_options {
@@ -304,6 +363,7 @@ namespace bb_tracer_options {
     uint64_t max_intervals = 0;
     uint64_t start_interval = 0;
     bool encode_bb_ids = false;
+    bool checkpoint_restore = false;
 
     void set_options(option_parser_t &parser) {
         parser.option(0, "en_bbv", 0, [&](const char UNUSED *s) { en_bbv = true; });

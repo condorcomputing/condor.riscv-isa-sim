@@ -7,6 +7,7 @@ autom4te.cache/
 .gdb_history
 .#*
 *~
+config.log
 install/
 tests/stf_tests/temp/
 tests/logs/

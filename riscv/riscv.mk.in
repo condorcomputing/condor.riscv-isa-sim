@@ -34,12 +34,14 @@ riscv_install_hdrs = \
 	entropy_source.h \
 	extension.h \
 	isa_parser.h \
+	jtag_dtm.h \
 	log_file.h \
 	memtracer.h \
 	mmu.h \
 	platform.h \
 	stf_handler.h \
 	processor.h \
+	remote_bitbang.h \
 	rocc.h \
 	sim.h \
 	simif.h \
@@ -863,11 +865,21 @@ riscv_insn_ext_v_ctrl = \
 	vsetvli \
 	vsetvl \
 
+riscv_insn_ext_zvqdotq = \
+	vqdot_vv \
+	vqdot_vx \
+	vqdotu_vv \
+	vqdotu_vx \
+	vqdotsu_vv \
+	vqdotsu_vx \
+	vqdotus_vx \
+
 riscv_insn_ext_v = \
 	$(riscv_insn_ext_v_alu_fp) \
 	$(riscv_insn_ext_v_alu_int) \
 	$(riscv_insn_ext_v_ctrl) \
 	$(riscv_insn_ext_v_ldst) \
+	$(riscv_insn_ext_zvqdotq) \
 
 riscv_insn_ext_h = \
 	hfence_gvma \
@@ -1065,6 +1077,17 @@ riscv_insn_ext_zvksh = \
 	vsm3c_vi \
 	vsm3me_vv \
 
+riscv_insn_ext_zvbdot = \
+	vqbdotu_vv \
+	vqbdots_vv \
+	vfwbdot_vv \
+	vfbdot_vv \
+
+riscv_insn_ext_zvldot = \
+	vqldotu_vv \
+	vqldots_vv \
+	vfwldot_vv \
+
 riscv_insn_ext_zimop = \
 	mop_r_N \
 	mop_rr_N \
@@ -1121,6 +1144,8 @@ riscv_insn_list = \
 	$(riscv_insn_ext_zfh_zfa) \
 	$(riscv_insn_ext_zicond) \
 	$(riscv_insn_ext_zvk) \
+	$(riscv_insn_ext_zvbdot) \
+	$(riscv_insn_ext_zvldot) \
 	$(riscv_insn_priv) \
 	$(riscv_insn_smrnmi) \
 	$(riscv_insn_svinval) \

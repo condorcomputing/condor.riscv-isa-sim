@@ -146,10 +146,9 @@ do { \
 #define SHAMT (insn.i_imm() & 0x3F)
 #define BRANCH_TARGET (pc + insn.sb_imm())
 #define JUMP_TARGET (pc + insn.uj_imm())
-#define RM ({ int rm = insn.rm(); \
-              if (rm == 7) rm = STATE.frm->read(); \
-              if (rm > 4) throw trap_illegal_instruction(insn.bits()); \
-              rm; })
+#define validate_rm(rm) ({ require(rm < 5); rm; })
+#define VFP_RM validate_rm(STATE.frm->read())
+#define RM (insn.rm() == 7 ? VFP_RM : validate_rm(insn.rm()))
 
 static inline bool is_aligned(const unsigned val, const unsigned pos)
 {
@@ -242,6 +241,7 @@ class wait_for_interrupt_t {};
 
 #define wfi() \
   do { set_pc_and_serialize(npc); \
+       STATE.taken_branch_flag = false; \
        throw wait_for_interrupt_t(); \
      } while (0)
 
@@ -342,10 +342,10 @@ inline long double to_f(float128_t f) { long double r; memcpy(&r, &f, sizeof(r))
 #define DEBUG_RVV_FMA_VF \
   printf("vfma(%lu) vd=%f vs1=%f vs2=%f vd_old=%f\n", i, to_f(vd), to_f(rs1), to_f(vs2), to_f(vd_old));
 #else
-#define DEBUG_RVV_FP_VV 0
-#define DEBUG_RVV_FP_VF 0
-#define DEBUG_RVV_FMA_VV 0
-#define DEBUG_RVV_FMA_VF 0
+#define DEBUG_RVV_FP_VV (void) 0
+#define DEBUG_RVV_FP_VF (void) 0
+#define DEBUG_RVV_FMA_VV (void) 0
+#define DEBUG_RVV_FMA_VF (void) 0
 #endif
 
 #define DECLARE_XENVCFG_VARS(field) \

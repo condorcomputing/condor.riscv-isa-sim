@@ -23,20 +23,23 @@ logfile=$(dirname "$0")/../logs/stf_$testname_full.log
 export SPIKE=$1
 STATUS=0
 
+test_num=1
 export SPIKE_OPTS="--stf_trace_memory_records --stf_macro_tracing"
 
 source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
 if [ $? -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
 	exit 1
-fi	
+fi
 
 if ! grep -q "MEM WRITE.*12345678" $DUMP_OUT; then
-	echo "$testname_basic: $DUMP_OUT does not contain the expected MEM_WRITE" >> $logfile
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_WRITE" >> $logfile
 	STATUS=1
 fi
 
 if ! grep -q "MEM READ.*12345678" $DUMP_OUT; then
-	echo "$testname_basic: $DUMP_OUT does not contain the expected MEM_READ" >> $logfile
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_READ" >> $logfile
 	STATUS=1
 fi
 
@@ -44,4 +47,89 @@ if [ $STATUS -ne 0 ]; then
 	echo "Spike command:" >> $logfile
 	echo $SPIKE_COMMAND >> $logfile
 fi
+
+# Obtain the instruction number of the mem write operation (we'll use this in the next test)
+export SPIKE_OPTS="--stf_insn_num_tracing --stf_trace_memory_records"
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+if [ $? -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+	exit 1
+fi
+mem_write_insn_num=`grep -B1 "MEM WRITE.*12345678" $DUMP_OUT | tail -n 2 | head -n 1 | awk '{print $2}'`
+mem_write_insn_num=$((mem_write_insn_num-1))
+
+test_num=$((test_num+1))
+export SPIKE_OPTS="--stf_insn_num_tracing --stf_insn_start ${mem_write_insn_num} --stf_trace_memory_records"
+
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+if [ $? -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+	exit 1
+fi
+
+if ! grep -q "MEM WRITE.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_WRITE" >> $logfile
+	STATUS=1
+fi
+
+if ! grep -q "MEM READ.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_READ" >> $logfile
+	STATUS=1
+fi
+
+if [ $STATUS -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+fi
+
+export SPIKE_OPTS="--stf_insn_num_tracing --stf_insn_start ${mem_write_insn_num} --stf_trace_memory_records --en_bbv"
+test_num=$((test_num+1))
+
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+if [ $? -ne 0 ]; then
+	exit 1
+fi
+
+if ! grep -q "MEM WRITE.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_WRITE" >> $logfile
+	STATUS=1
+fi
+
+if ! grep -q "MEM READ.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_READ" >> $logfile
+	STATUS=1
+fi
+
+if [ $STATUS -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+fi
+
+export SPIKE_OPTS="--stf_trace_memory_records --stf_macro_tracing --en_bbv --stf_include_macros"
+test_num=$((test_num+1))
+
+source ./runner.sh $testname_basic $testname_full >> $logfile 2>&1
+if [ $? -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+	exit 1
+fi
+
+if ! grep -q "MEM WRITE.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_WRITE" >> $logfile
+	STATUS=1
+fi
+
+if ! grep -q "MEM READ.*12345678" $DUMP_OUT; then
+	echo "$testname_basic TEST ${test_num}: $DUMP_OUT does not contain the expected MEM_READ" >> $logfile
+	STATUS=1
+fi
+
+if [ $STATUS -ne 0 ]; then
+	echo "Spike command:" >> $logfile
+	echo $SPIKE_COMMAND >> $logfile
+fi
+
 exit $STATUS

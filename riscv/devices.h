@@ -20,17 +20,24 @@ class simif_t;
 
 class bus_t : public abstract_device_t {
  public:
+  bus_t();
+
+  // the fallback device owns all addresses not owned by other devices
+  bus_t(abstract_device_t* fallback);
+
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
+  reg_t size() override;
   void add_device(reg_t addr, abstract_device_t* dev);
   json checkpoint(std::string tag);
   void checkpoint_restore(json j) override;
   void checkpoint_restore(json j, std::string file_path="");
 
-  std::pair<reg_t, abstract_device_t*> find_device(reg_t addr);
+  std::pair<reg_t, abstract_device_t*> find_device(reg_t addr, size_t len);
 
  private:
   std::map<reg_t, abstract_device_t*> devices;
+  abstract_device_t* fallback;
 };
 
 class rom_device_t : public abstract_device_t {
@@ -38,6 +45,7 @@ class rom_device_t : public abstract_device_t {
   rom_device_t(std::vector<char> data);
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
+  reg_t size() override { return data.size(); }
   const std::vector<char>& contents() { return data; }
  private:
   std::vector<char> data;
@@ -48,7 +56,6 @@ class abstract_mem_t : public abstract_device_t {
   virtual ~abstract_mem_t() = default;
 
   virtual char* contents(reg_t addr) = 0;
-  virtual reg_t size() = 0;
   virtual void dump(std::ostream& o) = 0;
 };
 
@@ -72,12 +79,31 @@ class mem_t : public abstract_mem_t {
   reg_t sz;
 };
 
+class abstract_sim_if_t {
+public:
+  virtual ~abstract_sim_if_t() = default;
+  virtual bool load(reg_t addr, size_t len, uint8_t* bytes) = 0;
+  virtual bool store(reg_t addr, size_t len, const uint8_t* bytes) = 0;
+};
+
+class external_sim_device_t : public abstract_device_t {
+public:
+  external_sim_device_t(abstract_sim_if_t* sim);
+  void set_simulator(abstract_sim_if_t* sim);
+  bool load(reg_t addr, size_t len, uint8_t* bytes) override;
+  bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
+  reg_t size() override;
+
+private:
+  abstract_sim_if_t* external_simulator;
+};
+
 class clint_t : public abstract_device_t {
  public:
   clint_t(const simif_t*, uint64_t freq_hz, bool real_time);
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
-  size_t size() { return CLINT_SIZE; }
+  reg_t size() override { return CLINT_SIZE; }
   void tick(reg_t rtc_ticks) override;
   uint64_t get_mtimecmp(reg_t hartid) { return mtimecmp[hartid]; }
   uint64_t get_mtime() { return mtime; }
@@ -158,7 +184,7 @@ class plic_t : public abstract_device_t, public abstract_interrupt_controller_t 
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
   void set_interrupt_level(uint32_t id, int lvl) override;
-  size_t size() { return PLIC_SIZE; }
+  reg_t size() override { return PLIC_SIZE; }
   json checkpoint() {
     json j;
     for (size_t i=0; i<contexts.size(); i++) {
@@ -209,11 +235,11 @@ class plic_t : public abstract_device_t, public abstract_interrupt_controller_t 
 class ns16550_t : public abstract_device_t {
  public:
   ns16550_t(abstract_interrupt_controller_t *intctrl,
-            uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width);
+            uint32_t interrupt_id, uint32_t reg_shift, uint32_t reg_io_width, bool disable_stdin);
   bool load(reg_t addr, size_t len, uint8_t* bytes) override;
   bool store(reg_t addr, size_t len, const uint8_t* bytes) override;
   void tick(reg_t rtc_ticks) override;
-  size_t size() { return NS16550_SIZE; }
+  reg_t size() override { return NS16550_SIZE; }
  private:
   abstract_interrupt_controller_t *intctrl;
   uint32_t interrupt_id;
@@ -236,6 +262,55 @@ class ns16550_t : public abstract_device_t {
 
   int backoff_counter;
   static const int MAX_BACKOFF = 16;
+  bool disable_stdin;
+
+ public:
+  json checkpoint() {
+    json j;
+
+    std::vector<uint8_t> _rxq;
+    std::queue<uint8_t> rx_queue_copy = rx_queue;
+    while (!rx_queue_copy.empty()) {
+       _rxq.push_back(rx_queue_copy.front());
+       rx_queue_copy.pop();
+    }
+    j["rx_queue"] = _rxq;
+
+    j["dll"] = dll;
+    j["dlm"] = dlm;
+    j["iir"] = iir;
+    j["ier"] = ier;
+    j["fcr"] = fcr;
+    j["lcr"] = lcr;
+    j["mcr"] = mcr;
+    j["lsr"] = lsr;
+    j["msr"] = msr;
+    j["scr"] = scr;
+    j["backoff_counter"] = backoff_counter;
+
+    return j;
+  }
+
+  void checkpoint_restore(json j) {
+    std::vector<uint8_t> _rxq = j["rx_queue"];
+
+    for (const auto elem : _rxq) {
+       rx_queue.push(elem);
+    }
+
+    dll = j["dll"];
+    dll = j["dll"];
+    dlm = j["dlm"];
+    iir = j["iir"];
+    ier = j["ier"];
+    fcr = j["fcr"];
+    lcr = j["lcr"];
+    mcr = j["mcr"];
+    lsr = j["lsr"];
+    msr = j["msr"];
+    scr = j["scr"];
+    backoff_counter = j["backoff_counter"];
+  }
 };
 
 template<typename T>

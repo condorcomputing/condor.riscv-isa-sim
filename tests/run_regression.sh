@@ -145,6 +145,7 @@ else
     done
 fi
 
+# ========================================================================
 # Run STF tests
 pushd $(dirname $0)/stf_tests > /dev/null
 for script in test-*.sh; do

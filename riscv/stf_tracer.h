@@ -321,6 +321,10 @@ struct StfTracer
       //start macro is the beginning of the trace region
       _in_trace_region = true;
 
+      if(_trace_memory_records) {
+        proc->get_mmu()->flush_tlb();
+      }
+
       if((bool)stf_writer == false)  {
         open_trace(proc,fetch,pc);
       }

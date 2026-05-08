@@ -13,7 +13,7 @@
 #if 0
 #  define D(x) x
 #else
-#  define D(x)
+#  define D(x) (void) 0
 #endif
 
 // Return the number of bits wide that a field has to be to encode up to n
@@ -249,6 +249,11 @@ bool debug_module_t::store(reg_t addr, size_t len, const uint8_t* bytes)
   return false;
 }
 
+reg_t debug_module_t::size()
+{
+  return PGSIZE;
+}
+
 void debug_module_t::write32(uint8_t *memory, unsigned int index, uint32_t value)
 {
   uint8_t* base = memory + index * 4;
@@ -445,7 +450,6 @@ bool debug_module_t::dmi_read(unsigned address, uint32_t *value)
               } else {
                 dmstatus.allresumeack = false;
               }
-              auto hart = sim->get_harts().at(hart_id);
               if (!hart_available(hart_id)) {
                 dmstatus.allrunning = false;
                 dmstatus.allhalted = false;

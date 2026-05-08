@@ -36,13 +36,13 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the `boost_regex' library (-lboost_regex). */
+/* Define to 1 if you have the 'boost_regex' library (-lboost_regex). */
 #undef HAVE_LIBBOOST_REGEX
 
-/* Define to 1 if you have the `boost_system' library (-lboost_system). */
+/* Define to 1 if you have the 'boost_system' library (-lboost_system). */
 #undef HAVE_LIBBOOST_SYSTEM
 
-/* Define to 1 if you have the `pthread' library (-lpthread). */
+/* Define to 1 if you have the 'pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
 /* Define to 1 if struct statx exists. */

@@ -706,26 +706,6 @@ static void NOINLINE add_sfence_insn(disassembler_t* d, const char* name, uint32
   d->add_insn(new disasm_insn_t(name, match, mask, {&xrs1, &xrs2}));
 }
 
-static void NOINLINE add_pitype3_insn(disassembler_t* d, const char* name, uint32_t match, uint32_t mask)
-{
-  d->add_insn(new disasm_insn_t(name, match, mask, {&xrd, &xrs1, &p_imm3}));
-}
-
-static void NOINLINE add_pitype4_insn(disassembler_t* d, const char* name, uint32_t match, uint32_t mask)
-{
-  d->add_insn(new disasm_insn_t(name, match, mask, {&xrd, &xrs1, &p_imm4}));
-}
-
-static void NOINLINE add_pitype5_insn(disassembler_t* d, const char* name, uint32_t match, uint32_t mask)
-{
-  d->add_insn(new disasm_insn_t(name, match, mask, {&xrd, &xrs1, &p_imm5}));
-}
-
-static void NOINLINE add_pitype6_insn(disassembler_t* d, const char* name, uint32_t match, uint32_t mask)
-{
-  d->add_insn(new disasm_insn_t(name, match, mask, {&xrd, &xrs1, &p_imm6}));
-}
-
 static void NOINLINE add_vector_v_insn(disassembler_t* d, const char* name, uint32_t match, uint32_t mask)
 {
   d->add_insn(new disasm_insn_t(name, match, mask, {&vd, &vs2, opt, &vm}));
@@ -1843,6 +1823,13 @@ void disassembler_t::add_instructions(const isa_parser_t* isa, bool strict)
     DISASM_OPIV_MULTIPLYADD_VX__INSN(vwmacc,    1);
     DISASM_OPIV_MULTIPLYADD__X__INSN(vwmaccus,  1);
     DISASM_OPIV_MULTIPLYADD_VX__INSN(vwmaccsu,  0);
+
+    if (ext_enabled(EXT_ZVQDOTQ)) {
+      DISASM_OPIV_VX__INSN(vqdot,   0);
+      DISASM_OPIV_VX__INSN(vqdotu,  0);
+      DISASM_OPIV_VX__INSN(vqdotsu, 0);
+      DISASM_OPIV__X__INSN(vqdotus, 0);
+    }
 
     #undef DISASM_OPIV_VXI_INSN
     #undef DISASM_OPIV_VX__INSN

@@ -181,6 +181,10 @@ struct StfHandler
       }
 
       tracer->incr_executed_roi_umode_instructions(proc);
+
+      if (unlikely(tracer->trace_memory_records() && tracer->is_start_of_region(0))) {
+        proc->get_mmu()->flush_tlb();
+      }
     }
   }
   uint64_t get_executed_insns() {
